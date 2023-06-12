@@ -16,7 +16,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "deprecated",
-    "pz-rail-base",
+    "pz-rail",
     "astropy",
     "healpy",
     "photerr",

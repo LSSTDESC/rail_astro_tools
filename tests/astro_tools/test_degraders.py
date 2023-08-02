@@ -4,7 +4,7 @@ from typing import Type
 import numpy as np
 import pandas as pd
 import pytest
-from photerr import LsstErrorModel
+from photerr import LsstErrorModel as PhoterrErrorModel
 
 from rail.core.data import DATA_STORE, TableHandle
 from rail.core.utils import find_rail_file
@@ -13,6 +13,7 @@ from rail.creation.degradation.spectroscopic_degraders import InvRedshiftIncompl
 from rail.creation.degradation.spectroscopic_selections import *
 from rail.creation.degradation.observing_condition_degrader import ObsCondition
 from rail.creation.degradation.grid_selection import GridSelection
+from rail.creation.degradation.lsst_error_model import LSSTErrorModel
 
 
 @pytest.fixture
@@ -233,7 +234,7 @@ def test_ObsCondition_extended(data):
 def test_ObsCondition_empty_map_dict(data):
     """Test control with random seeds."""
     degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={})
-    degrader2 = LsstErrorModel()
+    degrader2 = PhoterrErrorModel()
 
     # make sure setting the same seeds yields the same output
     degraded_data1 = degrader1(data).data
@@ -241,3 +242,21 @@ def test_ObsCondition_empty_map_dict(data):
     assert degraded_data1.equals(degraded_data2)
 
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
+
+
+def test_LSSTErrorModel_returns_correct_columns(data):
+    # Setup the stage
+    degrader = LSSTErrorModel.make_stage()
+
+    # Apply the degrader and get the data out
+    degraded_data = degrader(data).data
+
+    # Check that we still have the same number of rows, and added an extra
+    # column for each band
+    assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1] - 1)
+    for band in "ugrizy":
+        assert band in degraded_data.columns
+        assert f"{band}_err" in degraded_data.columns
+    os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
+
+    

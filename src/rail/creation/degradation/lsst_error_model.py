@@ -1,12 +1,16 @@
 """The LSST Model for photometric errors."""
 from dataclasses import MISSING, InitVar
-from typing import get_origin, get_type_hints, get_args, Union
+from typing import Union, get_args, get_origin, get_type_hints
 
 from ceci.config import StageParameter as Param
 from photerr import LsstErrorModel as PhotErrErrorModel
 from photerr import LsstErrorParams as PhotErrErrorParams
-
 from rail.creation.degrader import Degrader
+
+# Add a dummy __call__ to InitVar. This is a hack to get around
+# not being able to get_type_hint on InitVars with older python
+if getattr(InitVar, "__call__", None) is None:
+    setattr(InitVar, "__call__", lambda *args, **kwargs: None)
 
 
 def _resolve_type(val):
@@ -73,11 +77,6 @@ class LSSTErrorModel(Degrader):
     # Now we want to copy all parameters from the installed PhotErr
     # First, let's get a dict of all params, including the InitVars
     _photerr_params = PhotErrErrorParams.__dataclass_fields__
-
-    # Add a dummy __call__ to InitVar. This is a hack to get around
-    # not being able to get_type_hint on InitVars with older python
-    if getattr(InitVar, "__call__", None) is None:
-        InitVar.__call__ = lambda *args, **kwargs: None
 
     # Now get the resolved types for every parameter
     _photerr_types = {

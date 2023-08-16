@@ -166,6 +166,8 @@ class ObsCondition(Degrader):
         # Check if extra keys are passed
         # get lsst_error_model keys
         lsst_error_model_keys = [field.name for field in fields(LsstErrorParams)]
+        # this does not include renameDict, add it here:
+        lsst_error_model_keys.append("renameDict")
         if len(set(self.config["map_dict"].keys()) - set(lsst_error_model_keys)) != 0:
             extra_keys = set(self.config["map_dict"].keys()) - set(lsst_error_model_keys)
             raise ValueError("Extra keywords are passed to the configuration: \n" + str(extra_keys))

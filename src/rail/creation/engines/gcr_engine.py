@@ -16,9 +16,9 @@ class GCRCreator(Creator):
     gcr_root_dir : str, default="/global/cfs/cdirs/lsst/shared"
         The path to the GCR Catalogs.
     catalog_name : str, default="cosmoDC2_v1.1.4_small"
-        The name of the GCR catalog to load.
+        The name of the GCR catalog to load. See https://github.com/LSSTDESC/gcr-catalogs/blob/master/examples/GCRCatalogs%20Demo.ipynb for how to get available options.
     quantities : list, default=[redshift, mag_u_lsst, mag_g_lsst, ..., size_true, size_minor_true]
-        The quantities to query from the catalog.
+        The quantities to query from the catalog. See https://github.com/LSSTDESC/gcr-catalogs/blob/master/GCRCatalogs/SCHEMA.md for all options.
     filters : list, default=["mag_i_lsst < 26.5"]
         Filters that are passed to the GCR Query.
     """

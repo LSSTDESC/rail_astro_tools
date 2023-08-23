@@ -213,6 +213,7 @@ def test_ObsCondition_extended(data):
     weight = ""
     map_dict = {
         "airmass": find_rail_file('examples_data/creation_data/data/survey_conditions/minion_1016_dc2_Median_airmass_i_and_nightlt1825_HEAL.fits'),
+        "EBV": 0.0,
         "nVisYr": {"u": 50.0},
         "tvis": 30.0,
     }
@@ -240,6 +241,16 @@ def test_ObsCondition_empty_map_dict(data):
     degraded_data1 = degrader1(data).data
     degraded_data2 = degrader2(data.data, random_state=0)
     assert degraded_data1.equals(degraded_data2)
+
+    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
+    
+
+def test_ObsCondition_renameDict(data):
+    """Test with no renameDict included"""
+    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u"},})
+
+    # make sure setting the same seeds yields the same output
+    degraded_data1 = degrader1(data).data
 
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
 

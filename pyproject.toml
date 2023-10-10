@@ -26,8 +26,6 @@ dependencies = [
     "GCRCatalogs @ git+https://github.com/LSSTDESC/gcr-catalogs.git@v1.6.0#egg=GCRCatalogs[full]"
 ]
 
-dependencies = []
-
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
 [project.optional-dependencies]
 dev = [

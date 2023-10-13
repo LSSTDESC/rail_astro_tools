@@ -138,8 +138,9 @@ def test_ObsCondition_returns_correct_shape(data):
     degrader = ObsCondition.make_stage()
 
     degraded_data = degrader(data).data
-
-    assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1])
+    
+    # columns added: pixel, ugrizyerrors, ra, dec
+    assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1] + 2)
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
 

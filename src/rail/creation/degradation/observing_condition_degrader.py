@@ -382,7 +382,11 @@ class ObsCondition(Degrader):
         ebvvec = self.maps["EBV"][ind]
 
         if "renameDict" in self.maps.keys():
-            bands = self.maps["renameDict"]
+            # in case renameDict contains other things than bands
+            bands={}
+            for b in ["u","g","r","i","z","y"]:
+                if b in list(self.maps["renameDict"].keys()):
+                    bands[b] = self.maps["renameDict"][b]
         elif "renameDict" not in self.maps.keys():
             bands = {
                 "u":"u",

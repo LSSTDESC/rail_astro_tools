@@ -62,8 +62,8 @@ def data_with_radec():
     rng = np.random.default_rng(0)
     x = rng.normal(loc=26, scale=1, size=(100, 7))
     # for simplicity we will not sample uniformly on sphere
-    ra = rng.uniform(low=0, high=360, size=(100,1))
-    dec = rng.uniform(low=-90, high=90, size=(100,1))
+    ra = rng.uniform(low=40, high=80, size=(100,1))
+    dec = rng.uniform(low=-50, high=-25, size=(100,1))
     # replace redshifts with reasonable values
     x[:, 0] = np.linspace(0, 2, x.shape[0])
     x=np.append(x, ra, axis=1)

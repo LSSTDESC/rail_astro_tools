@@ -348,13 +348,18 @@ class ObsCondition(Degrader):
             print("No ra, dec found in catalogue, randomly assign pixels with weights.")
             assigned_pix = self.rng.choice(pixels, size=len(catalog), replace=True, p=weights)
             
+            # in this case, also attach the ra, dec columns in the data:
+            ra, dec=hp.pix2ang(self.config["nside"],assigned_pix,lonlat=True)
+            skycoord = pd.DataFrame(np.c_[ra,dec], columns=["ra","decl"])
+            catalog = pd.concat([catalog, skycoord], axis=1)
+            
         # this is the case where there are objects outside the footprint\
         if not (np.in1d(assigned_pix, pixels)==True).all():
             # flag all those pixels into -99
             print("Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!")
             ind=np.in1d(assigned_pix, pixels)
             assigned_pix[~ind]=-99
-        
+               
         # make it a DataFrame object
         assigned_pix = pd.DataFrame(assigned_pix, columns=["pixel"])
         # attach pixels to the catalogue

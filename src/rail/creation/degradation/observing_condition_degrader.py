@@ -324,6 +324,11 @@ class ObsCondition(Degrader):
     def assign_pixels(self, catalog: pd.DataFrame) -> pd.DataFrame:
         """
         assign the pixels to the input catalog
+        check if catalogue contains position information;
+        if so, assign according to ra, dec;
+        for objects outside the survey mask, assign nan # make sure it won't cause problem
+        else, assign randomly.
+
         """
         pixels = self.maps["pixels"]
         if "weight" in list((self.maps).keys()):

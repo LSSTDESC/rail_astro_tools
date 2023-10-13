@@ -265,12 +265,20 @@ def test_ObsCondition_empty_map_dict(data):
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
     
 
-def test_ObsCondition_renameDict(data):
+def test_ObsCondition_renameDict(data_with_radec):
     """Test with renameDict included"""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u"},})
+    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u", "ra": "ra", "dec":"dec"},})
 
     # make sure setting the same seeds yields the same output
-    degraded_data1 = degrader1(data).data
+    degraded_data1 = degrader1(data_with_radec).data
+
+    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
+    
+    
+def test_ObsCondition_data_with_radec(data_with_radec):
+    """Test with ra dec in data"""
+    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0})
+    degraded_data1 = degrader1(data_with_radec).data
 
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
 
@@ -290,10 +298,3 @@ def test_LSSTErrorModel_returns_correct_columns(data):
         assert f"{band}_err" in degraded_data.columns
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
-
-def test_ObsCondition_data_with_radec(data_with_radec):
-    """Test with ra dec in data"""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0})
-    degraded_data1 = degrader1(data_with_radec).data
-
-    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))

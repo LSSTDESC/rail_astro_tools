@@ -103,6 +103,18 @@ class ObsCondition(Degrader):
             msg="dictionary containing the paths to the survey condition maps and/or additional LSSTErrorModel parameters.",
         ),
     )
+    # define constants:
+    STANDARD_BANDS = ["u","g","r","i","z","y"]
+    # set the A_lamba/E(B-V) values for the six LSST filters 
+    BAND_A_EBV = {
+            "u":4.81,
+            "g":3.64,
+            "r":2.70,
+            "i":2.06,
+            "z":1.58,
+            "y":1.31,
+        }
+    
 
     def __init__(self, args, comm=None):
         Degrader.__init__(self, args, comm=comm)
@@ -303,7 +315,7 @@ class ObsCondition(Degrader):
         ind = allpix == pixel
 
         obs_conditions = {}
-        for key in (self.maps).keys():
+        for key in self.maps:
             # For keys that may contain the survey condition maps
             if key in self.obs_cond_keys:
                 # band-independent keys:
@@ -329,13 +341,8 @@ class ObsCondition(Degrader):
         else, assign randomly.
         """
         pixels = self.maps["pixels"]
-        if "weight" in list((self.maps).keys()):
-            weights = self.maps["weight"]
-            weights = weights / sum(weights)
-        else:
-            weights = None
 
-        if "renameDict" in self.maps.keys() and set(['ra','dec']).issubset(list(self.maps["renameDict"].keys())):
+        if "renameDict" in self.maps and set(['ra','dec']).issubset(list(self.maps["renameDict"].keys())):
             # if catalog contains ra, dec, but needs renaming
             rakey=self.maps["renameDict"]['ra']
             deckey=self.maps["renameDict"]['dec']
@@ -346,6 +353,13 @@ class ObsCondition(Degrader):
         else:
             # if catalog doesn't contain position information 
             print("No ra, dec found in catalogue, randomly assign pixels with weights.")
+            
+            # load weights if specified, otherwise set to uniform weights
+            if "weight" in self.maps:
+                weights = self.maps["weight"]
+                weights = weights / sum(weights)
+            else:
+                weights = None
             assigned_pix = self.rng.choice(pixels, size=len(catalog), replace=True, p=weights)
             
             # in this case, also attach the ra, dec columns in the data:
@@ -353,8 +367,9 @@ class ObsCondition(Degrader):
             skycoord = pd.DataFrame(np.c_[ra,dec], columns=["ra","decl"])
             catalog = pd.concat([catalog, skycoord], axis=1)
             
-        # this is the case where there are objects outside the footprint\
-        if not (np.in1d(assigned_pix, pixels)==True).all():
+        # this is the case where there are objects outside the footprint
+        overlap=np.in1d(set(assigned_pix), pixels, assume_unique=True)
+        if not (overlap==True).all():
             # flag all those pixels into -99
             print("Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!")
             ind=np.in1d(assigned_pix, pixels)
@@ -372,40 +387,23 @@ class ObsCondition(Degrader):
         """
         MW extinction reddening of the magnitudes
         """
-        # set the A_lamba/E(B-V) values for the six LSST filters 
-        band_a_ebv = {
-            "u":4.81,
-            "g":3.64,
-            "r":2.70,
-            "i":2.06,
-            "z":1.58,
-            "y":1.31,
-        }
-
         # find the corresponding ebv for the pixel
         ind = self.maps["pixels"]==pixel
         ebvvec = self.maps["EBV"][ind]
-
-        if "renameDict" in self.maps.keys():
-            # in case renameDict contains other things than bands
-            bands={}
-            for b in ["u","g","r","i","z","y"]:
-                if b in list(self.maps["renameDict"].keys()):
-                    bands[b] = self.maps["renameDict"][b]
-        elif "renameDict" not in self.maps.keys():
-            bands = {
-                "u":"u",
-                "g":"g",
-                "r":"r",
-                "i":"i",
-                "z":"z",
-                "y":"y",
-            }
         
-        for b in bands.keys():
-            key=bands[b]
-            # update pixel_cat to the reddened magnitudes
-            pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*band_a_ebv[b]
+        if "renameDict" in self.maps:
+            for b in self.STANDARD_BANDS:
+                # check which bands are included in renameDict
+                if b in self.maps["renameDict"]:
+                    key=self.maps["renameDict"][b]
+                    # update pixel_cat to the reddened magnitudes
+                    pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
+        else:
+            # go through standard bands
+            for b in self.STANDARD_BANDS:
+                key=b
+                # update pixel_cat to the reddened magnitudes
+                pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
 
         return pixel_cat
 

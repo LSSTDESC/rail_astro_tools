@@ -103,6 +103,18 @@ class ObsCondition(Degrader):
             msg="dictionary containing the paths to the survey condition maps and/or additional LSSTErrorModel parameters.",
         ),
     )
+    # define constants:
+    STANDARD_BANDS = ["u","g","r","i","z","y"]
+    # set the A_lamba/E(B-V) values for the six LSST filters 
+    BAND_A_EBV = {
+            "u":4.81,
+            "g":3.64,
+            "r":2.70,
+            "i":2.06,
+            "z":1.58,
+            "y":1.31,
+        }
+    
 
     def __init__(self, args, comm=None):
         Degrader.__init__(self, args, comm=comm)
@@ -303,7 +315,7 @@ class ObsCondition(Degrader):
         ind = allpix == pixel
 
         obs_conditions = {}
-        for key in (self.maps).keys():
+        for key in self.maps:
             # For keys that may contain the survey condition maps
             if key in self.obs_cond_keys:
                 # band-independent keys:
@@ -324,16 +336,48 @@ class ObsCondition(Degrader):
     def assign_pixels(self, catalog: pd.DataFrame) -> pd.DataFrame:
         """
         assign the pixels to the input catalog
+        check if catalogue contains position information;
+        if so, assign according to ra, dec;
+        else, assign randomly.
         """
         pixels = self.maps["pixels"]
-        if "weight" in list((self.maps).keys()):
-            weights = self.maps["weight"]
-            weights = weights / sum(weights)
+
+        if "renameDict" in self.maps and set(['ra','dec']).issubset(list(self.maps["renameDict"].keys())):
+            # if catalog contains ra, dec, but needs renaming
+            rakey=self.maps["renameDict"]['ra']
+            deckey=self.maps["renameDict"]['dec']
+            assigned_pix=hp.ang2pix(self.config["nside"], catalog[rakey].to_numpy(), catalog[deckey].to_numpy(), lonlat=True)            
+        elif set(['ra','dec']).issubset(catalog.columns):
+            # if catalog contains ra, dec, and no renaming
+            assigned_pix=hp.ang2pix(self.config["nside"], catalog['ra'].to_numpy(), catalog['dec'].to_numpy(), lonlat=True)
         else:
-            weights = None
-        assigned_pix = self.rng.choice(pixels, size=len(catalog), replace=True, p=weights)
+            # if catalog doesn't contain position information 
+            print("No ra, dec found in catalogue, randomly assign pixels with weights.")
+            
+            # load weights if specified, otherwise set to uniform weights
+            if "weight" in self.maps:
+                weights = self.maps["weight"]
+                weights = weights / sum(weights)
+            else:
+                weights = None
+            assigned_pix = self.rng.choice(pixels, size=len(catalog), replace=True, p=weights)
+            
+            # in this case, also attach the ra, dec columns in the data:
+            ra, dec=hp.pix2ang(self.config["nside"],assigned_pix,lonlat=True)
+            skycoord = pd.DataFrame(np.c_[ra,dec], columns=["ra","decl"])
+            catalog = pd.concat([catalog, skycoord], axis=1)
+            
+        # this is the case where there are objects outside the footprint
+        overlap=np.in1d(set(assigned_pix), pixels, assume_unique=True)
+        if not (overlap==True).all():
+            # flag all those pixels into -99
+            print("Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!")
+            ind=np.in1d(assigned_pix, pixels)
+            assigned_pix[~ind]=-99
+               
         # make it a DataFrame object
         assigned_pix = pd.DataFrame(assigned_pix, columns=["pixel"])
+        # attach pixels to the catalogue
         catalog = pd.concat([catalog, assigned_pix], axis=1)
 
         return catalog
@@ -343,36 +387,23 @@ class ObsCondition(Degrader):
         """
         MW extinction reddening of the magnitudes
         """
-        # set the A_lamba/E(B-V) values for the six LSST filters 
-        band_a_ebv = {
-            "u":4.81,
-            "g":3.64,
-            "r":2.70,
-            "i":2.06,
-            "z":1.58,
-            "y":1.31,
-        }
-
         # find the corresponding ebv for the pixel
         ind = self.maps["pixels"]==pixel
         ebvvec = self.maps["EBV"][ind]
-
-        if "renameDict" in self.maps.keys():
-            bands = self.maps["renameDict"]
-        elif "renameDict" not in self.maps.keys():
-            bands = {
-                "u":"u",
-                "g":"g",
-                "r":"r",
-                "i":"i",
-                "z":"z",
-                "y":"y",
-            }
         
-        for b in bands.keys():
-            key=bands[b]
-            # update pixel_cat to the reddened magnitudes
-            pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*band_a_ebv[b]
+        if "renameDict" in self.maps:
+            for b in self.STANDARD_BANDS:
+                # check which bands are included in renameDict
+                if b in self.maps["renameDict"]:
+                    key=self.maps["renameDict"][b]
+                    # update pixel_cat to the reddened magnitudes
+                    pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
+        else:
+            # go through standard bands
+            for b in self.STANDARD_BANDS:
+                key=b
+                # update pixel_cat to the reddened magnitudes
+                pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
 
         return pixel_cat
 
@@ -403,16 +434,23 @@ class ObsCondition(Degrader):
             # loop over each pixel
             pixel_cat_list = []
             for pixel, pixel_cat in catalog.groupby("pixel"):
-                # get the observing conditions for this pixel
-                obs_conditions = self.get_pixel_conditions(pixel)
                 
-                # apply MW extinction if supplied, 
-                # replace the Mag column with reddened magnitudes:
-                if "EBV" in self.maps.keys():
-                    pixel_cat = self.apply_galactic_extinction(pixel, pixel_cat)
+                # first, check if pixel is -99 - these objects have default obs_conditions:
+                if pixel==-99:
+                    # creating the error model for this pixel
+                    errorModel = LsstErrorModel()
+                
+                else:            
+                    # get the observing conditions for this pixel
+                    obs_conditions = self.get_pixel_conditions(pixel)
 
-                # creating the error model for this pixel
-                errorModel = LsstErrorModel(**obs_conditions)
+                    # apply MW extinction if supplied, 
+                    # replace the Mag column with reddened magnitudes:
+                    if "EBV" in self.maps.keys():
+                        pixel_cat = self.apply_galactic_extinction(pixel, pixel_cat)
+
+                    # creating the error model for this pixel
+                    errorModel = LsstErrorModel(**obs_conditions)
 
                 # calculate the error model for this pixel
                 obs_cat = errorModel(pixel_cat, random_state=self.rng)

@@ -53,6 +53,26 @@ def data_forspec():
     df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y"])
     return DS.add_data("data_forspec", df, TableHandle, path="dummy_forspec.pd")
 
+@pytest.fixture
+def data_with_radec():
+    DS = DATA_STORE()
+    DS.__class__.allow_overwrite = True
+
+    # generate random normal data
+    rng = np.random.default_rng(0)
+    x = rng.normal(loc=26, scale=1, size=(100, 7))
+    # for simplicity we will not sample uniformly on sphere
+    ra = rng.uniform(low=40, high=80, size=(100,1))
+    dec = rng.uniform(low=-50, high=-25, size=(100,1))
+    # replace redshifts with reasonable values
+    x[:, 0] = np.linspace(0, 2, x.shape[0])
+    x=np.append(x, ra, axis=1)
+    x=np.append(x, dec, axis=1)
+
+    # return data in handle wrapping a pandas DataFrame
+    df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y", "ra", "dec"])
+    return DS.add_data("data_with_radec", df, TableHandle, path="dummy_with_radec.pd")
+
 
 
 @pytest.mark.parametrize("pivot_redshift,errortype", [("fake", TypeError), (-1, ValueError)])
@@ -118,8 +138,9 @@ def test_ObsCondition_returns_correct_shape(data):
     degrader = ObsCondition.make_stage()
 
     degraded_data = degrader(data).data
-
-    assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1])
+    
+    # columns added: pixel, ugrizyerrors, ra, dec
+    assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1] + 2)
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
 
@@ -245,12 +266,20 @@ def test_ObsCondition_empty_map_dict(data):
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
     
 
-def test_ObsCondition_renameDict(data):
-    """Test with no renameDict included"""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u"},})
+def test_ObsCondition_renameDict(data_with_radec):
+    """Test with renameDict included"""
+    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u", "ra": "ra", "dec":"dec"},})
 
     # make sure setting the same seeds yields the same output
-    degraded_data1 = degrader1(data).data
+    degraded_data1 = degrader1(data_with_radec).data
+
+    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
+    
+    
+def test_ObsCondition_data_with_radec(data_with_radec):
+    """Test with ra dec in data"""
+    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0})
+    degraded_data1 = degrader1(data_with_radec).data
 
     os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
 
@@ -270,4 +299,3 @@ def test_LSSTErrorModel_returns_correct_columns(data):
         assert f"{band}_err" in degraded_data.columns
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
-    

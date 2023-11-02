@@ -22,11 +22,11 @@ from rail.core.data import (
 from rail.core.stage import RailStage
 from rail.tools.util_photometry import HyperbolicMagnitudes, HyperbolicSmoothing, PhotormetryManipulator, LSSTFluxToMagConverter, Dereddener
 from rail.core.utils import RAILDIR
-#from rail.tools.utilStages import (
+#from rail.tools.util_stages import (
 #    LSSTFluxToMagConverter,
 #    Dereddener,
 #)
-    
+
 
 # def test_data_file():
 #    with pytest.raises(ValueError) as errinfo:
@@ -52,21 +52,25 @@ def test_dereddener():
     testFile = os.path.join(RAILDIR, "rail", "examples_data", "testdata", "rubin_dm_dc2_example.pq")
     test_data = DS.read_file("test_data", TableHandle, testFile)
 
+    fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag', copy_cols=dict(ra='ra', decl='decl'))
+
     dustmap_dir = os.environ.get('RAIL_DUSTMAP_DIR')
-    is_temp_dir = False
     if dustmap_dir is None:
-        dustmap_dir = tempfile.TemporaryDirectory()
+        tmp_dustmap_dir = tempfile.TemporaryDirectory()
+        dustmap_dir = tmp_dustmap_dir.name
         is_temp_dir = True
 
-    fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag', copy_cols=dict(ra='ra', decl='decl'))
     dereddener = Dereddener.make_stage(name='dereddner', dustmap_dir=dustmap_dir)
     dereddener.fetch_map()
 
     flux_data = fluxToMag(test_data)
     dered_data = dereddener(flux_data)
 
-    
-    
+    if is_temp_dir:
+        tmp_dustmap_dir.cleanup()
+
+
+
 @pytest.fixture
 def hyperbolic_configuration():
     """get the code configuration for the example data"""
@@ -89,7 +93,7 @@ def load_result_smoothing():
     testFile = os.path.join(
         RAILDIR, "rail", "examples_data", "testdata", "test_dc2_training_9816_smoothing_params.pq"
     )
-    
+
     return DS.read_file("test_data", TableHandle, testFile).data
 
 
@@ -208,4 +212,3 @@ def test_HyperbolicMagnitudes(
         hypmag._check_filters(smoothing)
 
     os.remove(f"{handle_name}_{stage_name}.pq")
-

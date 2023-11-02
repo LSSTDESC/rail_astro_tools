@@ -54,6 +54,7 @@ def test_dereddener():
 
     fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag', copy_cols=dict(ra='ra', decl='decl'))
 
+    is_temp_dir = False
     dustmap_dir = os.environ.get('RAIL_DUSTMAP_DIR')
     if dustmap_dir is None:
         tmp_dustmap_dir = tempfile.TemporaryDirectory()

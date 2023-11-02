@@ -23,7 +23,7 @@ dependencies = [
     "photerr",
     "dustmaps",
     "pz-hyperbolic-temp",
-    "GCRCatalogs @ git+https://github.com/LSSTDESC/gcr-catalogs.git@v1.6.0#egg=GCRCatalogs[full]"
+    "lsstdesc-gcr-catalogs",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)

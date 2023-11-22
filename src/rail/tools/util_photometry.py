@@ -414,7 +414,9 @@ class LSSTFluxToMagConverter(RailStage):
 
 class Dereddener(RailStage):
     """Utility stage that does dereddening
-
+    
+    Note: set copy_cols="all" to copy all 
+    columns in data
     """
     name = 'Dereddener'
 

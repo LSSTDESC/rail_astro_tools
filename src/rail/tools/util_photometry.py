@@ -414,7 +414,9 @@ class LSSTFluxToMagConverter(RailStage):
 
 class Dereddener(RailStage):
     """Utility stage that does dereddening
-
+    
+    Note: set copy_cols="ALL" to copy all 
+    columns in data
     """
     name = 'Dereddener'
 
@@ -462,12 +464,23 @@ class Dereddener(RailStage):
         except KeyError as msg:  # pragma: no cover
             raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
         ebvvec = dust_map(coords)
+        band_mag_name_list=[]
         for i, band_ in enumerate(self.config.bands):
             band_mag_name = self.config.mag_name.format(band=band_)
             mag_vals = data[band_mag_name]
             out_data[band_mag_name] = mag_vals - ebvvec*self.config.band_a_env[i]
-        for col_ in self.config.copy_cols:  # pragma: no cover
-            out_data[col_] = data[col_]
+            band_mag_name_list.append(band_mag_name)
+        
+        # check if copy_cols is a list, or is set to ALL:
+        if isinstance(self.config.copy_cols, list): # pragma: no cover
+            for col_ in self.config.copy_cols:  # pragma: no cover
+                out_data[col_] = data[col_]
+        elif self.config.copy_cols=="ALL": # pragma: no cover
+            for col_ in data:
+                # make sure we do not overwrite the photometry columns
+                if col_ not in band_mag_name_list:
+                    out_data[col_] = data[col_]
+
         self.add_data('output', out_data)
 
     def __call__(self, data):

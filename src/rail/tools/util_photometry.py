@@ -415,8 +415,8 @@ class LSSTFluxToMagConverter(RailStage):
 class Dereddener(RailStage):
     """Utility stage that does dereddening
     
-    Note: set copy_cols="ALL" to copy all 
-    columns in data
+    Note: set copy_all_cols=True to copy all 
+    columns in data, copy_cols will be ignored
     """
     name = 'Dereddener'
 
@@ -427,6 +427,7 @@ class Dereddener(RailStage):
     config_options.update(dustmap_name='sfd')
     config_options.update(dustmap_dir=str)
     config_options.update(copy_cols=[])
+    config_options.update(copy_all_cols=False)
 
     inputs = [('input', Hdf5Handle)]
     outputs = [('output', Hdf5Handle)]
@@ -470,12 +471,12 @@ class Dereddener(RailStage):
             mag_vals = data[band_mag_name]
             out_data[band_mag_name] = mag_vals - ebvvec*self.config.band_a_env[i]
             band_mag_name_list.append(band_mag_name)
-        
-        # check if copy_cols is a list, or is set to ALL:
-        if isinstance(self.config.copy_cols, list): # pragma: no cover
+       
+        # check if copy_all_cols set to true:
+        if self.config.copy_all_cols==False: # pragma: no cover
             for col_ in self.config.copy_cols:  # pragma: no cover
                 out_data[col_] = data[col_]
-        elif self.config.copy_cols=="ALL": # pragma: no cover
+        elif self.config.copy_all_cols==True: # pragma: no cover
             for col_ in data:
                 # make sure we do not overwrite the photometry columns
                 if col_ not in band_mag_name_list:

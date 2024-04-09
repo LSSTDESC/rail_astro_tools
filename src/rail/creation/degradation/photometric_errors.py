@@ -1,4 +1,9 @@
-"""The LSST Model for photometric errors."""
+"""
+The Photometric error Model LSST, Roman, and Euclid. Based on photometric 
+error models defined in the package photerr
+
+Author: John Franklin Crenshaw, Tianqing Zhang
+"""
 from dataclasses import MISSING
 
 from ceci.config import StageParameter as Param

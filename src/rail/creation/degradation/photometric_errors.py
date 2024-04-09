@@ -15,12 +15,17 @@ class PhotoErrorModel(Noisifier):
 
     This is a wrapper around the error model from PhotErr. The parameter
     docstring below is dynamically added by the installed version of PhotErr:
-
+    
+    
     """
     
     name = "PhotoErrorModel"
     
     def set_params(self, peparams):
+        """
+        Set the photometric error parameters from photerr to 
+        the ceci config
+        """
         PhotErrErrorParams = peparams
                 
         config_options = Noisifier.config_options.copy()
@@ -52,11 +57,18 @@ class PhotoErrorModel(Noisifier):
         Noisifier.__init__(self, args, comm=comm)
         
     def initNoiseModel(self):
+        """
+        Initialize the noise model by the peNoiseModel
+        """
         self.noiseModel = self.peNoiseModel(
             **{key: self.config[key] for key in self._photerr_params}
         )
         
     def addNoise(self, noiseModel):
+        
+        """
+        Add noise to the input catalog
+        """
         
         # Load the input catalog
         data = self.get_data("input")
@@ -66,20 +78,18 @@ class PhotoErrorModel(Noisifier):
         
         # Return the new catalog
         self.add_data("output", obsData)
-        
-        print('addNoise is ran')
-        
+ 
         
 class LSSTErrorModel(PhotoErrorModel):
+    
+    """
+    The LSST Error model, defined by peLsstErrorParams and peLsstErrorModel
+    """
     
     name = "LSSTErrorModel"
     
     def __init__(self, args, comm=None):
-        """
-        Constructor
 
-        Does standard Degrader initialization and sets up the error model.
-        """
         PhotoErrorModel.__init__(self, args, comm=comm)
         
         self.set_params(peLsstErrorParams)   
@@ -90,14 +100,14 @@ class LSSTErrorModel(PhotoErrorModel):
         
 class RomanErrorModel(PhotoErrorModel):
     
+    """
+    The Roman Error model, defined by peRomanErrorParams and peRomanErrorModel
+    """
+    
     name = "RomanErrorModel"
     
     def __init__(self, args, comm=None):
-        """
-        Constructor
 
-        Does standard Degrader initialization and sets up the error model.
-        """
         PhotoErrorModel.__init__(self, args, comm=comm)
         
         self.set_params(peRomanErrorParams)    
@@ -107,14 +117,14 @@ class RomanErrorModel(PhotoErrorModel):
         
 class EuclidErrorModel(PhotoErrorModel):
     
+    """
+    The Roman Error model, defined by peRomanErrorParams and peRomanErrorModel
+    """
+    
     name = "EuclidErrorModel"
     
     def __init__(self, args, comm=None):
-        """
-        Constructor
 
-        Does standard Degrader initialization and sets up the error model.
-        """
         PhotoErrorModel.__init__(self, args, comm=comm)
         
         self.set_params(peEuclidErrorParams)    

@@ -16,32 +16,6 @@ class PhotoErrorModel(Noisifier):
 
     """
     
-#     @classmethod
-#     def define_default_params(cls, peparams):
-        
-        
-#         PhotErrErrorParams = peparams
-                
-#         config_options = Noisifier.config_options.copy()
-
-#         # Dynamically add all parameters from PhotErr
-#         _photerr_params = PhotErrErrorParams.__dataclass_fields__
-#         cls._photerr_params = _photerr_params
-#         for key, val in _photerr_params.items():
-#             # Get the default value
-#             if val.default is MISSING:
-#                 default = val.default_factory()
-#             else:
-#                 default = val.default
-
-#             # Add this param to config_options
-#             cls.config_options[key] = Param(
-#                 None,  # Let PhotErr handle type checking
-#                 default,  
-#                 msg="See the main docstring for details about this parameter.",
-#                 required=False,
-#             )
-        
     def set_params(self, peparams):
         PhotErrErrorParams = peparams
                 

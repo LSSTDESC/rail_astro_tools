@@ -6,6 +6,8 @@ from photerr import LsstErrorModel as peLsstErrorModel
 from photerr import LsstErrorParams as peLsstErrorParams
 from photerr import RomanErrorModel as peRomanErrorModel
 from photerr import RomanErrorParams as peRomanErrorParams
+from photerr import EuclidErrorModel as peEuclidErrorModel
+from photerr import EuclidErrorParams as peEuclidErrorParams
 from rail.creation.noisifier import Noisifier
 
 class PhotoErrorModel(Noisifier):
@@ -15,6 +17,8 @@ class PhotoErrorModel(Noisifier):
     docstring below is dynamically added by the installed version of PhotErr:
 
     """
+    
+    name = "PhotoErrorModel"
     
     def set_params(self, peparams):
         PhotErrErrorParams = peparams
@@ -47,7 +51,10 @@ class PhotoErrorModel(Noisifier):
         """
         Noisifier.__init__(self, args, comm=comm)
         
-
+    def initNoiseModel(self):
+        self.noiseModel = self.peNoiseModel(
+            **{key: self.config[key] for key in self._photerr_params}
+        )
         
     def addNoise(self, noiseModel):
         
@@ -58,7 +65,6 @@ class PhotoErrorModel(Noisifier):
         obsData = noiseModel(data, random_state=self.config.seed)
         
         # Return the new catalog
-        
         self.add_data("output", obsData)
         
         print('addNoise is ran')
@@ -67,8 +73,6 @@ class PhotoErrorModel(Noisifier):
 class LSSTErrorModel(PhotoErrorModel):
     
     name = "LSSTErrorModel"
-#     PhotErrErrorParams = peLsstErrorParams
-#     PhotoErrorModel.define_default_params(peLsstErrorParams)
     
     def __init__(self, args, comm=None):
         """
@@ -78,22 +82,15 @@ class LSSTErrorModel(PhotoErrorModel):
         """
         PhotoErrorModel.__init__(self, args, comm=comm)
         
+        self.set_params(peLsstErrorParams)   
+        self.peNoiseModel = peLsstErrorModel
         
-        self.set_params(peLsstErrorParams)
-        self.initNoiseModel()
-        
-        
-    def initNoiseModel(self):
-        self.noiseModel = peLsstErrorModel(
-            **{key: self.config[key] for key in self._photerr_params}
-        )
+
         
         
 class RomanErrorModel(PhotoErrorModel):
     
     name = "RomanErrorModel"
-    # PhotoErrorModel.PhotErrErrorParams = peRomanErrorParams
-    # PhotoErrorModel.define_default_params()
     
     def __init__(self, args, comm=None):
         """
@@ -103,11 +100,22 @@ class RomanErrorModel(PhotoErrorModel):
         """
         PhotoErrorModel.__init__(self, args, comm=comm)
         
-        self.set_params(peRomanErrorParams)
-        self.initNoiseModel()
+        self.set_params(peRomanErrorParams)    
+        self.peNoiseModel = peRomanErrorModel
+
+                
         
+class EuclidErrorModel(PhotoErrorModel):
+    
+    name = "EuclidErrorModel"
+    
+    def __init__(self, args, comm=None):
+        """
+        Constructor
+
+        Does standard Degrader initialization and sets up the error model.
+        """
+        PhotoErrorModel.__init__(self, args, comm=comm)
         
-    def initNoiseModel(self):
-        self.noiseModel = peRomanErrorModel(
-            **{key: self.config[key] for key in self._photerr_params}
-        )
+        self.set_params(peEuclidErrorParams)    
+        self.peNoiseModel = peEuclidErrorModel

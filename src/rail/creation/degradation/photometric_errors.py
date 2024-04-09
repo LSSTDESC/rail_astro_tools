@@ -56,7 +56,7 @@ class PhotoErrorModel(Noisifier):
         """
         Noisifier.__init__(self, args, comm=comm)
         
-    def initNoiseModel(self):
+    def _initNoiseModel(self):
         """
         Initialize the noise model by the peNoiseModel
         """
@@ -64,7 +64,7 @@ class PhotoErrorModel(Noisifier):
             **{key: self.config[key] for key in self._photerr_params}
         )
         
-    def addNoise(self, noiseModel):
+    def _addNoise(self):
         
         """
         Add noise to the input catalog
@@ -74,14 +74,14 @@ class PhotoErrorModel(Noisifier):
         data = self.get_data("input")
 
         # Add photometric errors
-        obsData = noiseModel(data, random_state=self.config.seed)
+        obsData = self.noiseModel(data, random_state=self.config.seed)
         
         # Return the new catalog
         self.add_data("output", obsData)
  
         
 class LSSTErrorModel(PhotoErrorModel):
-    
+
     """
     The LSST Error model, defined by peLsstErrorParams and peLsstErrorModel
     """

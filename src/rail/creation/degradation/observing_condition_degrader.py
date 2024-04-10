@@ -9,10 +9,10 @@ import pandas as pd
 from ceci.config import StageParameter as Param
 from photerr import LsstErrorModel, LsstErrorParams
 
-from rail.creation.degrader import Degrader
+from rail.creation.noisifier import Noisifier
 
 
-class ObsCondition(Degrader):
+class ObsCondition(Noisifier):
     """Photometric errors based on observation conditions
 
     This degrader calculates spatially-varying photometric errors
@@ -60,7 +60,7 @@ class ObsCondition(Degrader):
     """
 
     name = "ObsCondition"
-    config_options = Degrader.config_options.copy()
+    config_options = Noisifier.config_options.copy()
     config_options.update(
         nside=Param(
             int,
@@ -117,7 +117,7 @@ class ObsCondition(Degrader):
     
 
     def __init__(self, args, comm=None):
-        Degrader.__init__(self, args, comm=comm)
+        Noisifier.__init__(self, args, comm=comm)
 
         # store a list of keys relevant for
         # survey conditions;

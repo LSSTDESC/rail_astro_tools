@@ -407,10 +407,17 @@ class ObsCondition(Noisifier):
 
         return pixel_cat
 
-
-    def run(self):
+    
+    def _initNoiseModel(self):
         """
-        Run the degrader.
+        Initialise the error model: LSSTerrorModel
+        """
+        self.default_errorModel = LsstErrorModel()
+
+        
+    def _addNoise(self):
+        """
+        Run the noisifier.
         """
         self.rng = np.random.default_rng(seed=self.config["random_seed"])
 
@@ -437,8 +444,8 @@ class ObsCondition(Noisifier):
                 
                 # first, check if pixel is -99 - these objects have default obs_conditions:
                 if pixel==-99:
-                    # creating the error model for this pixel
-                    errorModel = LsstErrorModel()
+                    # use the default error model for this pixel
+                    errorModel = self.default_errorModel
                 
                 else:            
                     # get the observing conditions for this pixel

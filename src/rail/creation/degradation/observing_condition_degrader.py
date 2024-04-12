@@ -9,10 +9,10 @@ import pandas as pd
 from ceci.config import StageParameter as Param
 from photerr import LsstErrorModel, LsstErrorParams
 
-from rail.creation.degrader import Degrader
+from rail.creation.noisifier import Noisifier
 
 
-class ObsCondition(Degrader):
+class ObsCondition(Noisifier):
     """Photometric errors based on observation conditions
 
     This degrader calculates spatially-varying photometric errors
@@ -60,7 +60,7 @@ class ObsCondition(Degrader):
     """
 
     name = "ObsCondition"
-    config_options = Degrader.config_options.copy()
+    config_options = Noisifier.config_options.copy()
     config_options.update(
         nside=Param(
             int,
@@ -117,7 +117,7 @@ class ObsCondition(Degrader):
     
 
     def __init__(self, args, comm=None):
-        Degrader.__init__(self, args, comm=comm)
+        Noisifier.__init__(self, args, comm=comm)
 
         # store a list of keys relevant for
         # survey conditions;
@@ -407,10 +407,17 @@ class ObsCondition(Degrader):
 
         return pixel_cat
 
-
-    def run(self):
+    
+    def _initNoiseModel(self):
         """
-        Run the degrader.
+        Initialise the error model: LSSTerrorModel
+        """
+        self.default_errorModel = LsstErrorModel()
+
+        
+    def _addNoise(self):
+        """
+        Run the noisifier.
         """
         self.rng = np.random.default_rng(seed=self.config["random_seed"])
 
@@ -437,8 +444,8 @@ class ObsCondition(Degrader):
                 
                 # first, check if pixel is -99 - these objects have default obs_conditions:
                 if pixel==-99:
-                    # creating the error model for this pixel
-                    errorModel = LsstErrorModel()
+                    # use the default error model for this pixel
+                    errorModel = self.default_errorModel
                 
                 else:            
                     # get the observing conditions for this pixel

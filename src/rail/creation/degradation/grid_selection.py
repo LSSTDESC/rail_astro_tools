@@ -158,9 +158,15 @@ class GridSelection(Selector):
 
         ratio_list = []
         max_specz_list = []
+                
         for pix_x, pix_y in zip(pixels_x, pixels_y):
-            ratio_list.append(ratios[pix_y][pix_x])
-            max_specz_list.append(max_specz[pix_y][pix_x])
+            # cover the galaxy outside the grid of ratio
+            if (pix_x in [-1,ratios.shape[0]]) or (pix_y in [-1, ratios.shape[1]]):
+                ratio_list.append(0.0)
+                max_specz_list.append(99.0)
+            else:
+                ratio_list.append(ratios[pix_y][pix_x])
+                max_specz_list.append(max_specz[pix_y][pix_x])
 
         data_hsc_like['ratios'] = ratio_list
         data_hsc_like['max_specz'] = max_specz_list

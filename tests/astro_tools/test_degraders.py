@@ -84,7 +84,7 @@ def test_InvRedshiftIncompleteness_bad_params(pivot_redshift, errortype):
 
 def test_InvRedshiftIncompleteness_returns_correct_shape(data):
     """Make sure returns same number of columns, fewer rows"""
-    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0)
+    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0, seed = 12345)
     degraded_data = degrader(data).data
     assert degraded_data.shape[0] < data.data.shape[0]
     assert degraded_data.shape[1] == data.data.shape[1]

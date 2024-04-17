@@ -1,16 +1,16 @@
-"""Degraders that emulate spectroscopic effects on photometry"""
+"""Selector that emulate spectroscopic effects on photometry"""
 
 import os
 import numpy as np
 import pandas as pd
 import pickle
 import tables_io
-from rail.creation.degrader import Degrader
+from rail.creation.selector import Selector
 from rail.core.utils import find_rail_file
 from ceci.config import StageParameter as Param
 
 
-class GridSelection(Degrader):
+class GridSelection(Selector):
     """
     Uses the ratio of HSC spectroscpic galaxies to photometric galaxies to portion a sample
     into training and application samples. Option to implement a color-based redshift cut off in each pixel.
@@ -39,12 +39,14 @@ class GridSelection(Degrader):
     Second HSC Data Release, details of which can be found here:
     Aihara, H., AlSayyad, Y., Ando, M., et al. 2019, PASJ, 71, 114
     doi: 10.1093/pasj/psz103
+    
+    Update(Apr 16 2024): Now inherit from selector and implement the _select() instead of run()
     """
     def_ratio_file = find_rail_file("examples_data/creation_data/data/hsc_ratios_and_specz.hdf5")
     def_set_file = find_rail_file("examples_data/creation_data/data/HSC_grid_settings.pkl" )
 
     name = 'GridSelection'
-    config_options = Degrader.config_options.copy()
+    config_options = Selector.config_options.copy()
     config_options.update(color_redshift_cut=Param(bool, True, msg='using color-based redshift cut'),
                           percentile_cut=Param(float, 99.0, msg='percentile cut-off for each pixel in color-based redshift cut off'),
                           redshift_cut=Param(float, 100.0, msg="cut redshifts above this value"),
@@ -57,14 +59,14 @@ class GridSelection(Degrader):
 
     def __init__(self, args, comm=None):
 
-        Degrader.__init__(self, args, comm=comm)
+        Selector.__init__(self, args, comm=comm)
 
         if self.config.redshift_cut < 0:
             raise ValueError("redshift cut must be positive")
         if (self.config.percentile_cut < 0) | (self.config.percentile_cut > 100):
             raise ValueError('percentile cut off must be between 0 and 100')
 
-    def run(self):
+    def _select(self):
         """
         HSC galaxies were binned in color magnitude space with i-band mag from -2 to 6 and g-z color from 13 to 26
         200 bins in each direction. The ratio of of galaxies with spectroscopic redshifts (training galaxies) to
@@ -104,8 +106,9 @@ class GridSelection(Degrader):
             raise ValueError("x limits should have two elements!")
         if len(y_lims) != 2:  # pragma: no cover
             raise ValueError("y limits should have two elements!")
-        data_hsc_like = data[(data['x_vals'] >= x_lims[0]) & (data['x_vals'] <= x_lims[1]) & (data['y_vals'] >= y_lims[0]) & (data['y_vals'] <= y_lims[1])]
-
+        # data_hsc_like = data[(data['x_vals'] >= x_lims[0]) & (data['x_vals'] <= x_lims[1]) & (data['y_vals'] >= y_lims[0]) & (data['y_vals'] <= y_lims[1])]
+        
+        data_hsc_like = data
         x_vals = data_hsc_like['x_vals'].to_numpy()
         y_vals = data_hsc_like['y_vals'].to_numpy()
 
@@ -205,8 +208,7 @@ class GridSelection(Degrader):
                 for j in range(int(number_to_keep) + 1):
                     keep_inds.append(indices_to_list[j])
 
-        training_data = data_hsc_like_redshift_cut.loc[keep_inds, :]
-        training_data = training_data[training_data['redshift'] > 0]
-        training_data = training_data.drop(['x_vals', 'y_vals', 'ratios'], axis=1)
+        total_mask = np.zeros(len(data), dtype=bool)
+        total_mask[keep_inds] = True
 
-        self.add_data('output', training_data)
+        return total_mask

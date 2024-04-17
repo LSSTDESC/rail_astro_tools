@@ -213,8 +213,13 @@ class GridSelection(Selector):
             else:  # pragma: no cover
                 for j in range(int(number_to_keep) + 1):
                     keep_inds.append(indices_to_list[j])
-
+        
+        finalcut = data_hsc_like_redshift_cut.loc[keep_inds, :]
+        finalcut = finalcut[finalcut['redshift'] > 0]
+        
+        final_keep_inds = np.array(finalcut.index)
+        
         total_mask = np.zeros(len(data), dtype=bool)
-        total_mask[keep_inds] = True
+        total_mask[final_keep_inds] = True
 
         return total_mask

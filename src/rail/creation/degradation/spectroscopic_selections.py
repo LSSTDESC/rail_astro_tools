@@ -4,12 +4,12 @@ import os
 
 import numpy as np
 from ceci.config import StageParameter as Param
-from rail.creation.degrader import Degrader
+from rail.creation.selector import Selector
 from scipy.interpolate import interp1d
 from rail.core.utils import RAILDIR
 
 
-class SpecSelection(Degrader):
+class SpecSelection(Selector):
     """The super class of spectroscopic selections.
 
     Parameters
@@ -37,7 +37,7 @@ class SpecSelection(Degrader):
     """
 
     name = "specselection"
-    config_options = Degrader.config_options.copy()
+    config_options = Selector.config_options.copy()
     config_options.update(
         N_tot=Param(int, 10000, msg="Number of selected sources"),
         nondetect_val=Param(float, 99.0, msg="value to be removed for non detects"),
@@ -68,7 +68,7 @@ class SpecSelection(Degrader):
     )
 
     def __init__(self, args, comm=None):
-        Degrader.__init__(self, args, comm=comm)
+        Selector.__init__(self, args, comm=comm)
         self._validate_settings()
         self.mask = None
         self.rng = None
@@ -149,9 +149,9 @@ class SpecSelection(Degrader):
             # update the internal state
             self.mask &= mask
 
-    def run(self):
+    def _select(self):
         """Run the selection."""
-        self.rng = np.random.default_rng(seed=self.config.seed)
+        self.rng = np.random.default_rng(seed=self.config.random_seed)
         # get the bands and bandNames present in the data
         data = self.get_data("input", allow_missing=True)
         self.validate_colnames(data)
@@ -160,10 +160,11 @@ class SpecSelection(Degrader):
         self.selection(data)
         if self.config.downsample is True:
             self.downsampling_N_tot()
+        
+        return self.mask
+#         data_selected = data.iloc[np.where(self.mask == 1)[0]]
 
-        data_selected = data.iloc[np.where(self.mask == 1)[0]]
-
-        self.add_data("output", data_selected)
+#         self.add_data("output", data_selected)
 
     def __repr__(self):
         """

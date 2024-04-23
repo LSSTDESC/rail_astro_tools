@@ -84,7 +84,7 @@ def test_InvRedshiftIncompleteness_bad_params(pivot_redshift, errortype):
 
 def test_InvRedshiftIncompleteness_returns_correct_shape(data):
     """Make sure returns same number of columns, fewer rows"""
-    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0)
+    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0, seed = 12345)
     degraded_data = degrader(data).data
     assert degraded_data.shape[0] < data.data.shape[0]
     assert degraded_data.shape[1] == data.data.shape[1]
@@ -102,11 +102,11 @@ def test_GridSelection_bad_params(percentile_cut, redshift_cut, errortype):
 
 
 def test_GridSelection_returns_correct_shape(data):
-    """Make sure returns 2 more columns, fewer rows"""
+    """Make sure returns same number of columns, fewer rows"""
     degrader = GridSelection.make_stage(pessimistic_redshift_cut=1.0)
     degraded_data = degrader(data).data
     assert degraded_data.shape[0] < data.data.shape[0]
-    assert degraded_data.shape[1] == data.data.shape[1] - 1
+    assert degraded_data.shape[1] == data.data.shape[1] 
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
     

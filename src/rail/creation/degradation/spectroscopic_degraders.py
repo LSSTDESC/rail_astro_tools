@@ -2,10 +2,12 @@
 
 import numpy as np
 import pandas as pd
-from rail.creation.degrader import Degrader
+from rail.creation.selector import Selector
+from rail.creation.noisifier import Noisifier
 
 
-class LineConfusion(Degrader):
+
+class LineConfusion(Noisifier):
     """Degrader that simulates emission line confusion.
 
     .. code-block:: python
@@ -37,7 +39,7 @@ class LineConfusion(Degrader):
     """
 
     name = 'LineConfusion'
-    config_options = Degrader.config_options.copy()
+    config_options = Noisifier.config_options.copy()
     config_options.update(true_wavelen=float,
                           wrong_wavelen=float,
                           frac_wrong=float)
@@ -45,7 +47,7 @@ class LineConfusion(Degrader):
     def __init__(self, args, comm=None):
         """
         """
-        Degrader.__init__(self, args, comm=comm)
+        Noisifier.__init__(self, args, comm=comm)
         # validate parameters
         if self.config.true_wavelen < 0:
             raise ValueError("true_wavelen must be positive, not {self.config.true_wavelen}")
@@ -53,8 +55,12 @@ class LineConfusion(Degrader):
             raise ValueError("wrong_wavelen must be positive, not {self.config.wrong_wavelen}")
         if self.config.frac_wrong < 0 or self.config.frac_wrong > 1:
             raise ValueError("frac_wrong must be between 0 and 1., not {self.config.wrong_wavelen}")
+            
+            
+    def _initNoiseModel(self):
+        self.rng = np.random.default_rng(self.config.seed)
 
-    def run(self):
+    def _addNoise(self):
         """ Run method
 
         Applies line confusion
@@ -75,8 +81,7 @@ class LineConfusion(Degrader):
         zmin = self.config.wrong_wavelen / self.config.true_wavelen - 1
 
         # select the random fraction of galaxies whose lines are confused
-        rng = np.random.default_rng(self.config.seed)
-        idx = rng.choice(
+        idx = self.rng.choice(
             np.where(values[:, 0] > zmin)[0],
             size=int(self.config.frac_wrong * values.shape[0]),
             replace=False,
@@ -92,7 +97,7 @@ class LineConfusion(Degrader):
         self.add_data('output', outData)
 
 
-class InvRedshiftIncompleteness(Degrader):
+class InvRedshiftIncompleteness(Selector):
     """Degrader that simulates incompleteness with a selection function
     inversely proportional to redshift.
 
@@ -107,17 +112,17 @@ class InvRedshiftIncompleteness(Degrader):
     """
 
     name = 'InvRedshiftIncompleteness'
-    config_options = Degrader.config_options.copy()
+    config_options = Selector.config_options.copy()
     config_options.update(pivot_redshift=float)
 
     def __init__(self, args, comm=None):
         """
         """
-        Degrader.__init__(self, args, comm=comm)
+        Selector.__init__(self, args, comm=comm)
         if self.config.pivot_redshift < 0:
             raise ValueError("pivot redshift must be positive, not {self.config.pivot_redshift}")
 
-    def run(self):
+    def _select(self):
         """ Run method
 
         Applies incompleteness
@@ -136,4 +141,4 @@ class InvRedshiftIncompleteness(Degrader):
         rng = np.random.default_rng(self.config.seed)
         mask = rng.random(size=data.shape[0]) <= survival_prob
 
-        self.add_data('output', data[mask])
+        return mask

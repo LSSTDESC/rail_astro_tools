@@ -501,7 +501,7 @@ class DustMapBase(RailStage):
         return self.get_handle('output')
 
 
-class Deredenner(DustMapBase):
+class Dereddener(DustMapBase):
     """Utility stage that does dereddening
     
     """
@@ -511,7 +511,7 @@ class Deredenner(DustMapBase):
         return mag_vals - ebvvec*band_a_env
     
 
-class Redenner(DustMapBase):
+class Reddener(DustMapBase):
     """Utility stage that does reddening
     
     """

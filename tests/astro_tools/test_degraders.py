@@ -8,7 +8,7 @@ from photerr import LsstErrorModel as PhoterrErrorModel
 
 from rail.core.data import DATA_STORE, TableHandle
 from rail.utils.core_utils import find_rail_file
-from rail.core.util_stages import ColumnMapper
+from rail.utils.stage_utils import ColumnMapper
 from rail.creation.degradation.spectroscopic_degraders import InvRedshiftIncompleteness, LineConfusion
 from rail.creation.degradation.spectroscopic_selections import *
 from rail.creation.degradation.observing_condition_degrader import ObsCondition

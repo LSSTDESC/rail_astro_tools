@@ -6,7 +6,7 @@ import pandas as pd
 import pickle
 import tables_io
 from rail.creation.selector import Selector
-from rail.core.utils import find_rail_file
+from rail.utils.core_utils import find_rail_file
 from ceci.config import StageParameter as Param
 
 

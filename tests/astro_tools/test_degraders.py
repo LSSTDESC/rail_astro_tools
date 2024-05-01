@@ -7,7 +7,7 @@ import pytest
 from photerr import LsstErrorModel as PhoterrErrorModel
 
 from rail.core.data import DATA_STORE, TableHandle
-from rail.core.utils import find_rail_file
+from rail.utils.core_utils import find_rail_file
 from rail.core.util_stages import ColumnMapper
 from rail.creation.degradation.spectroscopic_degraders import InvRedshiftIncompleteness, LineConfusion
 from rail.creation.degradation.spectroscopic_selections import *

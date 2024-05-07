@@ -437,12 +437,15 @@ class DustMapBase(RailStage):
         except KeyError as msg:  # pragma: no cover
             raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
 
-        if os.path.exists(os.path.join(self.config.dustmap_dir, self.config.dustmap_name)):  # pragma: no cover
+        dustmap_dir = os.path.expandvars(self.config.dustmap_dir)
+        dustmap_path = os.path.join(dustmap_dir, self.config.dustmap_name)
+        if os.path.exists(dustmap_path):  # pragma: no cover
             # already downloaded, return
             return
         
         dust_map_config = dustmaps_config.config
-        dust_map_config['data_dir'] = self.config.dustmap_dir
+        # dust_map_config['data_dir'] = self.config.dustmap_dir
+        dust_map_config['data_dir'] = dustmap_dir
         fetch_func = dust_map_submod.fetch
         fetch_func()
         

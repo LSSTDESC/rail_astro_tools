@@ -20,7 +20,7 @@ from rail.core.data import (
     TableHandle,
 )
 from rail.core.stage import RailStage
-from rail.tools.util_photometry import HyperbolicMagnitudes, HyperbolicSmoothing, PhotormetryManipulator, LSSTFluxToMagConverter, Dereddener
+from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotormetryManipulator, LSSTFluxToMagConverter, Dereddener
 from rail.utils.path_utils import RAILDIR
 #from rail.tools.util_stages import (
 #    LSSTFluxToMagConverter,

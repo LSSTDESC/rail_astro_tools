@@ -5,4 +5,4 @@ from rail.creation.degraders.observing_condition_degrader import *
 from rail.creation.degraders.spectroscopic_degraders import *
 from rail.creation.degraders.spectroscopic_selections import *
 from rail.creation.degraders.lsst_error_model import *
-from rail.tools.util_photometry import *
+from rail.tools.photometry_tools import *

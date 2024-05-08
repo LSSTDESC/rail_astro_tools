@@ -15,7 +15,7 @@ in [RAIL](https://github.com/LSSTDESC/RAIL).
 
 This code, while public on GitHub, has not yet been released by DESC and is
 still under active development. Our release of v1.0 will be accompanied by a
-journal paper describing the development and validation of RAIL.
+journal paper describing the development and validation of RAIL. 
 
 If you make use of the ideas or software in RAIL, please cite the repository 
 <https://github.com/LSSTDESC/RAIL>. You are welcome to re-use the code, which

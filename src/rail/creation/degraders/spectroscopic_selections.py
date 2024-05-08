@@ -6,7 +6,7 @@ import numpy as np
 from ceci.config import StageParameter as Param
 from rail.creation.selector import Selector
 from scipy.interpolate import interp1d
-from rail.core.utils import RAILDIR
+from rail.utils.path_utils import RAILDIR
 
 
 class SpecSelection(Selector):

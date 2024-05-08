@@ -7,13 +7,13 @@ import pytest
 from photerr import LsstErrorModel as PhoterrErrorModel
 
 from rail.core.data import DATA_STORE, TableHandle
-from rail.core.utils import find_rail_file
-from rail.core.util_stages import ColumnMapper
-from rail.creation.degradation.spectroscopic_degraders import InvRedshiftIncompleteness, LineConfusion
-from rail.creation.degradation.spectroscopic_selections import *
-from rail.creation.degradation.observing_condition_degrader import ObsCondition
-from rail.creation.degradation.grid_selection import GridSelection
-from rail.creation.degradation.lsst_error_model import LSSTErrorModel
+from rail.utils.path_utils import find_rail_file
+from rail.tools.table_tools import ColumnMapper
+from rail.creation.degraders.spectroscopic_degraders import InvRedshiftIncompleteness, LineConfusion
+from rail.creation.degraders.spectroscopic_selections import *
+from rail.creation.degraders.observing_condition_degrader import ObsCondition
+from rail.creation.degraders.grid_selection import GridSelection
+from rail.creation.degraders.lsst_error_model import LSSTErrorModel
 
 
 @pytest.fixture

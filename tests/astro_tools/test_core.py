@@ -20,8 +20,8 @@ from rail.core.data import (
     TableHandle,
 )
 from rail.core.stage import RailStage
-from rail.tools.util_photometry import HyperbolicMagnitudes, HyperbolicSmoothing, PhotormetryManipulator, LSSTFluxToMagConverter, Dereddener
-from rail.core.utils import RAILDIR
+from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotometryManipulator, LSSTFluxToMagConverter, Dereddener
+from rail.utils.path_utils import RAILDIR
 #from rail.tools.util_stages import (
 #    LSSTFluxToMagConverter,
 #    Dereddener,
@@ -98,38 +98,38 @@ def load_result_smoothing():
     return DS.read_file("test_data", TableHandle, testFile).data
 
 
-def test_PhotormetryManipulator(hyperbolic_configuration):
+def test_PhotometryManipulator(hyperbolic_configuration):
     DS = RailStage.data_store
     DS.clear()
     DS.__class__.allow_overwrite = False
 
-    # NOTE: the __init__ machinery of HyperbolicSmoothing is identical to PhotormetryManipulator
-    # and is used as substitute since PhotormetryManipulator cannot be instantiated.
+    # NOTE: the __init__ machinery of HyperbolicSmoothing is identical to PhotometryManipulator
+    # and is used as substitute since PhotometryManipulator cannot be instantiated.
     n_filters = len(hyperbolic_configuration["value_columns"])
 
     # wrong number of "error_columns"
     config = hyperbolic_configuration.copy()
     config["error_columns"] = hyperbolic_configuration["error_columns"][:-1]
     with pytest.raises(IndexError):
-        inst = HyperbolicSmoothing.make_stage(name="photormetry_manipulator", **config)
+        inst = HyperbolicSmoothing.make_stage(name="photometry_manipulator", **config)
 
     # wrong number of "zeropoints"
     config = hyperbolic_configuration.copy()
     config["zeropoints"] = np.arange(0, n_filters - 1)
     with pytest.raises(IndexError):
-        inst = HyperbolicSmoothing.make_stage(name="photormetry_manipulator", **config)
+        inst = HyperbolicSmoothing.make_stage(name="photometry_manipulator", **config)
 
     # default values for "zeropoints"
     config = hyperbolic_configuration.copy()
     config.pop("zeropoints")  # should resort to default of 0.0
-    inst = HyperbolicSmoothing.make_stage(name="photormetry_manipulator", **config)
+    inst = HyperbolicSmoothing.make_stage(name="photometry_manipulator", **config)
     assert len(inst.zeropoints) == n_filters
     assert all(zp == 0.0 for zp in inst.zeropoints)
 
     # if_flux preserves the values
     dummy_data = pd.DataFrame(dict(val=[1, 2, 3], err=[1, 2, 3]))
     config = dict(value_columns=["val"], error_columns=["err"], zeropoints=[0.0])
-    inst = HyperbolicSmoothing.make_stage(name="photormetry_manipulator", **config, is_flux=True)
+    inst = HyperbolicSmoothing.make_stage(name="photometry_manipulator", **config, is_flux=True)
     inst.set_data("input", dummy_data)
     data = inst.get_as_fluxes()
     assert np.allclose(data, dummy_data)

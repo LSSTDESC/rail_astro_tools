@@ -68,7 +68,7 @@ def _compute_flux_error(flux, magnitude_error):
     return flux_error
 
 
-class PhotormetryManipulator(RailStage, ABC):
+class PhotometryManipulator(RailStage, ABC):
     """
     Base class to perform opertations on magnitudes. A table with input magnitudes and errors is
     processed and transformed into an output table with new magnitudes and errors.
@@ -76,7 +76,7 @@ class PhotormetryManipulator(RailStage, ABC):
     Subclasses must implement the run() and compute() method.
     """
 
-    name = 'PhotormetryManipulator'
+    name = 'PhotometryManipulator'
     config_options = RailStage.config_options.copy()
     config_options.update(
         value_columns=Param(
@@ -171,7 +171,7 @@ class PhotormetryManipulator(RailStage, ABC):
         return self.get_handle('output')
 
 
-class HyperbolicSmoothing(PhotormetryManipulator):
+class HyperbolicSmoothing(PhotometryManipulator):
     """
     Initial stage to compute hyperbolic magnitudes (Lupton et al. 1999). Estimates the smoothing
     parameter b that is used by the second stage (`HyperbolicMagnitudes`) to convert classical to
@@ -179,7 +179,7 @@ class HyperbolicSmoothing(PhotormetryManipulator):
     """
 
     name = 'HyperbolicSmoothing'
-    config_options = PhotormetryManipulator.config_options.copy()
+    config_options = PhotometryManipulator.config_options.copy()
     inputs = [('input', PqHandle)]
     outputs = [('parameters', PqHandle)]
 
@@ -240,7 +240,7 @@ class HyperbolicSmoothing(PhotormetryManipulator):
         return self.get_handle('parameters')
 
 
-class HyperbolicMagnitudes(PhotormetryManipulator):
+class HyperbolicMagnitudes(PhotometryManipulator):
     """
     Convert a set of classical magnitudes to hyperbolic magnitudes  (Lupton et al. 1999). Requires
     input from the initial stage (`HyperbolicSmoothing`) to supply optimal values for the smoothing
@@ -248,7 +248,7 @@ class HyperbolicMagnitudes(PhotormetryManipulator):
     """
 
     name = 'HyperbolicMagnitudes'
-    config_options = PhotormetryManipulator.config_options.copy()
+    config_options = PhotometryManipulator.config_options.copy()
     inputs = [('input', PqHandle),
               ('parameters', PqHandle)]
     outputs = [('output', PqHandle)]

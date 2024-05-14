@@ -12,8 +12,18 @@ class UnrecBlModel(Degrader):
     Finding objects nearby each other. Merge them into one blended
 
     """
-    name = "UnrecBlModel"
+    name = "unrec_bl_model"
     config_options = Degrader.config_options.copy()
+    config_options.update(ra=Param(str, 'ra', msg='ra column name'),
+                          dec=Param(str, 'dec', msg='dec column name'),
+                          dist_cut=Param(float, 2.0, msg='distance cut for blends'),
+                          bands=Param(str, 'ugrizy', msg='name of filters'),
+                          match_size=Param(bool, False, msg='consider object size for finding blends'),
+                          match_shape=Param(bool, False, msg='consider object shape for finding blends'),
+                          obj_size=Param(str, 'obj_size', msg='object size column name'),
+                          a=Param(str, 'semi_major', msg='semi major axis column name'),
+                          b=Param(str, 'semi_minor', msg='semi minor axis column name'),
+                          theta=Param(str, 'orientation', msg='orientation angle column name'))
 
     def __init__(self, args, comm=None):
         """
@@ -30,11 +40,12 @@ class UnrecBlModel(Degrader):
         N_data = len(data)
         group_id = np.linspace(0, N_data-1, N_data, dtype='int')
 
-        coords = SkyCoord(ra=data['ra'], dec=data['dec'], unit='deg')
+        ra_name, dec_name = self.config.ra, self.config.dec
+        coords = SkyCoord(ra=data[ra_name], dec=data[dec_name], unit='deg')
         idx, d2d, d3d = coords.match_to_catalog_sky(coords, nthneighbor=2)
 
         for i in range(N_data):
-            if d2d.arcsec[i] < self.config.radius_cut:
+            if d2d.arcsec[i] < self.config.dist_cut:
                 group_id[idx[i]] = group_id[i]
 
         data['bl_group_id'] = group_id
@@ -48,9 +59,11 @@ class UnrecBlModel(Degrader):
         group_id = data['bl_group_id']
         unique_id = np.unique(group_id)
 
+        ra_name, dec_name = self.config.ra, self.config.dec
+
         cols = list(data.columns[:-1])   ## exluding the group id
-        ra_ind = cols.index('ra')
-        dec_ind = cols.index('dec')
+        ra_ind = cols.index(ra_name)
+        dec_ind = cols.index(dec_name)
         bands_ind = {b:cols.index(b) for b in self.config.bands}
 
         N_rows = len(unique_id)
@@ -62,8 +75,8 @@ class UnrecBlModel(Degrader):
 
             this_group = data.query(f'bl_group_id=={id}')
 
-            mergeData[i, dec_ind] = this_group['dec'].mean()
-            mergeData[i, ra_ind] = this_group['ra'].mean()
+            mergeData[i, ra_ind] = this_group[ra_name].mean()
+            mergeData[i, dec_ind] = this_group[dec_name].mean()
 
             for b in self.config.bands:
                   mergeData[i, bands_ind[b]] = -2.5*np.log10(np.sum(10**(-this_group[b]/2.5)))

@@ -21,7 +21,7 @@ from rail.core.data import (
 )
 from rail.core.stage import RailStage
 from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotometryManipulator, LSSTFluxToMagConverter, Dereddener
-from rail.utils.path_utils import RAILDIR
+from rail.utils.path_utils import RAILDIR, find_rail_file
 #from rail.tools.util_stages import (
 #    LSSTFluxToMagConverter,
 #    Dereddener,

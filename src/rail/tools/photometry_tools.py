@@ -20,8 +20,6 @@ dustmaps_config = tables_io.lazy_modules.lazyImport('dustmaps.config')
 dustmaps_sfd = tables_io.lazy_modules.lazyImport('dustmaps.sfd')
 
 
-
-
 # default column names in DC2
 LSST_BANDS = 'ugrizy'
 DEFAULT_MAG_COLS = [f"mag_{band}_lsst" for band in LSST_BANDS]
@@ -412,13 +410,13 @@ class LSSTFluxToMagConverter(RailStage):
         return self.get_handle('output')
 
 
-class Dereddener(RailStage):
+class DustMapBase(RailStage):
     """Utility stage that does dereddening
     
     Note: set copy_all_cols=True to copy all 
     columns in data, copy_cols will be ignored
     """
-    name = 'Dereddener'
+    name = 'DustMapBase'
 
     config_options = RailStage.config_options.copy()
     config_options.update(bands='ugrizy')
@@ -429,8 +427,8 @@ class Dereddener(RailStage):
     config_options.update(copy_cols=[])
     config_options.update(copy_all_cols=False)
 
-    inputs = [('input', Hdf5Handle)]
-    outputs = [('output', Hdf5Handle)]
+    inputs = [('input', PqHandle)]
+    outputs = [('output', PqHandle)]
 
     def fetch_map(self):
         dust_map_dict = dict(sfd=dustmaps_sfd)
@@ -439,12 +437,15 @@ class Dereddener(RailStage):
         except KeyError as msg:  # pragma: no cover
             raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
 
-        if os.path.exists(os.path.join(self.config.dustmap_dir, self.config.dustmap_name)):  # pragma: no cover
+        dustmap_dir = os.path.expandvars(self.config.dustmap_dir)
+        dustmap_path = os.path.join(dustmap_dir, self.config.dustmap_name)
+        if os.path.exists(dustmap_path):  # pragma: no cover
             # already downloaded, return
             return
         
         dust_map_config = dustmaps_config.config
-        dust_map_config['data_dir'] = self.config.dustmap_dir
+        # dust_map_config['data_dir'] = self.config.dustmap_dir
+        dust_map_config['data_dir'] = dustmap_dir
         fetch_func = dust_map_submod.fetch
         fetch_func()
         
@@ -455,7 +456,7 @@ class Dereddener(RailStage):
     def run(self):
         data = self.get_data('input', allow_missing=True)
         out_data = {}
-        coords = SkyCoord(data['ra'], data['decl'], unit = 'deg',frame='fk5')
+        coords = SkyCoord(data['ra'], data['dec'], unit = 'deg',frame='fk5')
         dust_map_dict = dict(sfd=dustmaps_sfd.SFDQuery)
         try:
             dust_map_class = dust_map_dict[self.config.dustmap_name]
@@ -469,7 +470,7 @@ class Dereddener(RailStage):
         for i, band_ in enumerate(self.config.bands):
             band_mag_name = self.config.mag_name.format(band=band_)
             mag_vals = data[band_mag_name]
-            out_data[band_mag_name] = mag_vals - ebvvec*self.config.band_a_env[i]
+            out_data[band_mag_name] = self._calc_values(mag_vals, ebvvec, self.config.band_a_env[i])
             band_mag_name_list.append(band_mag_name)
        
         # check if copy_all_cols set to true:
@@ -482,7 +483,8 @@ class Dereddener(RailStage):
                 if col_ not in band_mag_name_list:
                     out_data[col_] = data[col_]
 
-        self.add_data('output', out_data)
+        out_data_pd = pd.DataFrame(out_data)
+        self.add_data('output', out_data_pd)
 
     def __call__(self, data):
         """Return a converted table
@@ -500,3 +502,23 @@ class Dereddener(RailStage):
         self.set_data('input', data)
         self.run()
         return self.get_handle('output')
+
+
+class Dereddener(DustMapBase):
+    """Utility stage that does dereddening
+    
+    """
+    name = 'Dereddener'
+
+    def _calc_values(self, mag_vals, ebvvec, band_a_env):
+        return mag_vals - ebvvec*band_a_env
+    
+
+class Reddener(DustMapBase):
+    """Utility stage that does reddening
+    
+    """
+    name = 'Reddener'
+
+    def _calc_values(self, mag_vals, ebvvec, band_a_env):
+        return mag_vals + ebvvec*band_a_env

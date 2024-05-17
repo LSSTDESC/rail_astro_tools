@@ -20,8 +20,8 @@ from rail.core.data import (
     TableHandle,
 )
 from rail.core.stage import RailStage
-from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotometryManipulator, LSSTFluxToMagConverter, Dereddener
-from rail.utils.path_utils import RAILDIR
+from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotometryManipulator, LSSTFluxToMagConverter, Dereddener, Reddener
+from rail.utils.path_utils import RAILDIR, find_rail_file
 #from rail.tools.util_stages import (
 #    LSSTFluxToMagConverter,
 #    Dereddener,
@@ -37,7 +37,7 @@ def test_flux2mag():
     DS = RailStage.data_store
     DS.clear()
 
-    testFile = os.path.join(RAILDIR, "rail", "examples_data", "testdata", "rubin_dm_dc2_example.pq")
+    testFile = find_rail_file(os.path.join("examples_data", "testdata", "rubin_dm_dc2_example2.pq"))
     test_data = DS.read_file("test_data", TableHandle, testFile)
 
     fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag')
@@ -49,10 +49,10 @@ def test_dereddener():
     DS = RailStage.data_store
     DS.clear()
 
-    testFile = os.path.join(RAILDIR, "rail", "examples_data", "testdata", "rubin_dm_dc2_example.pq")
+    testFile = find_rail_file(os.path.join("examples_data", "testdata", "rubin_dm_dc2_example2.pq"))
     test_data = DS.read_file("test_data", TableHandle, testFile)
 
-    fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag', copy_cols=dict(ra='ra', decl='decl'))
+    fluxToMag = LSSTFluxToMagConverter.make_stage(name='flux2mag', copy_cols=dict(ra='ra', dec='decl'))
 
     is_temp_dir = False
     dustmap_dir = os.environ.get('RAIL_DUSTMAP_DIR')
@@ -62,10 +62,12 @@ def test_dereddener():
         is_temp_dir = True
 
     dereddener = Dereddener.make_stage(name='dereddner', dustmap_dir=dustmap_dir)
+    reddener = Reddener.make_stage(name='reddner', dustmap_dir=dustmap_dir)
     dereddener.fetch_map()
 
     flux_data = fluxToMag(test_data)
     dered_data = dereddener(flux_data)
+    red_data = reddener(flux_data)
 
     if is_temp_dir:
         tmp_dustmap_dir.cleanup()

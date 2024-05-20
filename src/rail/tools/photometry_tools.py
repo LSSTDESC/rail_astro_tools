@@ -422,7 +422,7 @@ class DustMapBase(RailStage):
     config_options = RailStage.config_options.copy()
     config_options.update(bands='ugrizy')
     config_options.update(ra_name='ra')
-    config_options.update(dec_name='decl')
+    config_options.update(dec_name='dec')
     config_options.update(mag_name="mag_{band}_lsst")
     config_options.update(band_a_env=[4.81,3.64,2.70,2.06,1.58,1.31])
     config_options.update(dustmap_name='sfd')

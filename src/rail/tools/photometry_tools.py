@@ -13,6 +13,7 @@ from ceci.config import StageParameter as Param
 from rail.core.data import PqHandle
 from rail.core.stage import RailStage
 from rail.core.data import PqHandle, Hdf5Handle
+from rail.core.common_params import SHARED_PARAMS
 
 import hyperbolic  # https://github.com/jlvdb/hyperbolic
 
@@ -331,7 +332,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
             Input table with photometry (magnitudes or flux columns and their respective
             uncertainties) as defined by the configuration.
         parameters : `PqHandle`
-            Table with smoothing parameters per photometric band, determined by
+            Table witdh smoothing parameters per photometric band, determined by
             `HyperbolicSmoothing`.
 
         Returns
@@ -420,6 +421,8 @@ class DustMapBase(RailStage):
 
     config_options = RailStage.config_options.copy()
     config_options.update(bands='ugrizy')
+    config_options.update(ra_name='ra')
+    config_options.update(dec_name='dec')
     config_options.update(mag_name="mag_{band}_lsst")
     config_options.update(band_a_env=[4.81,3.64,2.70,2.06,1.58,1.31])
     config_options.update(dustmap_name='sfd')
@@ -456,7 +459,7 @@ class DustMapBase(RailStage):
     def run(self):
         data = self.get_data('input', allow_missing=True)
         out_data = {}
-        coords = SkyCoord(data['ra'], data['dec'], unit = 'deg',frame='fk5')
+        coords = SkyCoord(data[self.config.ra_name], data[self.config.dec_name], unit = 'deg',frame='fk5')
         dust_map_dict = dict(sfd=dustmaps_sfd.SFDQuery)
         try:
             dust_map_class = dust_map_dict[self.config.dustmap_name]

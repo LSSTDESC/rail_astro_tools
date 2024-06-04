@@ -12,7 +12,7 @@ class UnrecBlModel(Degrader):
     Finding objects nearby each other. Merge them into one blended
 
     """
-    name = "unrec_bl_model"
+    name = "UnrecBlModel"
     config_options = Degrader.config_options.copy()
     config_options.update(ra=Param(str, 'ra', msg='ra column name'),
                           dec=Param(str, 'dec', msg='dec column name'),

@@ -14,6 +14,7 @@ from rail.creation.degraders.spectroscopic_selections import *
 from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
 from rail.creation.degraders.photometric_errors import EuclidErrorModel, LSSTErrorModel
+from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 
 
 @pytest.fixture
@@ -395,5 +396,18 @@ def test_LSSTErrorModel_returns_correct_columns(data):
 def test_EucliErrorModel(data):
     # Setup the stage
     degrader = EuclidErrorModel.make_stage()
+
+def test_BLModel(data_for_bl):
+    # Setup the stage
+    degrader = UnrecBlModel.make_stage()
+
+    # Apply the degrader and get the data out
+    degraded_data = degrader(data_for_bl).data
+
+    # Check output data has less rows than input data
+    assert degraded_data.shape[0] < data_for_bl.data.shape[0]
+
+    os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
+
 
     

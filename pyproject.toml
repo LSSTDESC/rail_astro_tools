@@ -26,6 +26,7 @@ dependencies = [
     "dustmaps",
     "pz-hyperbolic-temp",
     "lsstdesc-gcr-catalogs",
+    "FoFCatalogMatching",
 ]
 
 # On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)

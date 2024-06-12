@@ -75,6 +75,29 @@ def data_with_radec():
     return DS.add_data("data_with_radec", df, TableHandle, path="dummy_with_radec.pd")
 
 
+@pytest.fixture
+def data_for_bl():
+    """Some dummy data to use below."""
+
+    DS = DATA_STORE()
+    DS.__class__.allow_overwrite = True
+
+    # generate random normal data
+    columns=['ra', 'dec', 'redshift', 'u', 'g', 'r', 'i', 'z', 'y']
+    rng = np.random.default_rng(0)
+    x = rng.normal(loc=23, scale=3, size=(1000, len(columns)))
+
+    # replace positions with constrained values
+    x[:, 0] = np.random.uniform(low=0, high=0.02, size=1000)
+    x[:, 1] = np.random.uniform(low=0, high=0.02, size=1000)
+
+    # replace redshifts with reasonable values
+    x[:, 2] = np.linspace(0, 2, x.shape[0])
+
+    # return data in handle wrapping a pandas DataFrame
+    df = pd.DataFrame(x, columns=columns)
+    return DS.add_data("data_for_bl", df, TableHandle, path="dummy_for_bl.pd")
+
 
 @pytest.mark.parametrize("pivot_redshift,errortype", [("fake", TypeError), (-1, ValueError)])
 def test_InvRedshiftIncompleteness_bad_params(pivot_redshift, errortype):
@@ -397,6 +420,7 @@ def test_EucliErrorModel(data):
     # Setup the stage
     degrader = EuclidErrorModel.make_stage()
 
+
 def test_BLModel(data_for_bl):
     # Setup the stage
     degrader = UnrecBlModel.make_stage()
@@ -408,6 +432,3 @@ def test_BLModel(data_for_bl):
     assert degraded_data.shape[0] < data_for_bl.data.shape[0]
 
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
-
-
-    

@@ -8,4 +8,3 @@ dependencies:
   - h5py>=2.9=*mpi_openmpi*
   - hdf5=*=*mpi_openmpi*
   - mpi4py
-  - FoFCatalogMatching>=0.1.0

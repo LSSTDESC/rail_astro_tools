@@ -5,6 +5,7 @@ from rail.creation.degrader import Degrader
 import numpy as np, pandas as pd
 import FoFCatalogMatching
 
+
 class UnrecBlModel(Degrader):
     """Model for Creating Unrecognized Blends.
 

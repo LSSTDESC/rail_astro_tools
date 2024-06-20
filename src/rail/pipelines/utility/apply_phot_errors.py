@@ -25,31 +25,22 @@ class ApplyPhotErrorsPipeline(RailPipeline):
 
     default_input_dict = dict(input='dummy.in')
     
-    def __init__(self, namer, selection='default', flavor='baseline'):
+    def __init__(self, namer):
         RailPipeline.__init__(self)
 
         DS = RailStage.data_store
         DS.__class__.allow_overwrite = True
 
-        local_dir = name.resolve_path_template(
-            'degraded_catalog_path',
-            selection=selection,
-            flavor=flavor,
-        )
-        
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
-            output=os.path.join(local_dir, "output_reddener.pq"),
         )
         
         self.phot_errors = LSSTErrorModel.build(
             connections=dict(input=self.reddener.io.output),
-            output=os.path.join(local_dir, "output_lsst_error_model.pq"),
         )
 
         self.dereddener_errors = Dereddener.build(
             dustmap_dir=dustmap_dir,
             connections=dict(input=self.phot_errors.io.output),
-            output=os.path.join(local_dir, "output_dereddener.pq"),
         )
 

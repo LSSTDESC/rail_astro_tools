@@ -25,7 +25,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
 
     default_input_dict = dict(input='dummy.in')
     
-    def __init__(self, namer):
+    def __init__(self):
         RailPipeline.__init__(self)
 
         DS = RailStage.data_store

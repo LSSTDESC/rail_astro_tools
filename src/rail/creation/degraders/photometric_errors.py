@@ -53,14 +53,6 @@ class PhotoErrorModel(Noisifier):
                 required=False,
             )
         
-    def __init__(self, args, comm=None):
-        """
-        Constructor
-
-        Does standard Degrader initialization and sets up the error model.
-        """
-        Noisifier.__init__(self, args, comm=comm)
-        
     def _initNoiseModel(self):
         """
         Initialize the noise model by the peNoiseModel
@@ -93,9 +85,9 @@ class LSSTErrorModel(PhotoErrorModel):
     
     name = "LSSTErrorModel"
     
-    def __init__(self, args, comm=None):
+    def __init__(self, args, **kwargs):
 
-        PhotoErrorModel.__init__(self, args, comm=comm)
+        super().__init__(self, args, **kwargs)
         
         self.set_params(peLsstErrorParams)   
         self.peNoiseModel = peLsstErrorModel
@@ -111,9 +103,9 @@ class RomanErrorModel(PhotoErrorModel):
     
     name = "RomanErrorModel"
     
-    def __init__(self, args, comm=None):
+    def __init__(self, args, **kwargs):
 
-        PhotoErrorModel.__init__(self, args, comm=comm)
+        super().__init__(self, args, **kwargs)
         
         self.set_params(peRomanErrorParams)    
         self.peNoiseModel = peRomanErrorModel
@@ -128,9 +120,9 @@ class EuclidErrorModel(PhotoErrorModel):
     
     name = "EuclidErrorModel"
     
-    def __init__(self, args, comm=None):
+    def __init__(self, args, **kwargs):
 
-        PhotoErrorModel.__init__(self, args, comm=comm)
+        super().__init__(self, args, **kwargs)
         
         self.set_params(peEuclidErrorParams)    
         self.peNoiseModel = peEuclidErrorModel

@@ -57,9 +57,9 @@ class GridSelection(Selector):
                           random_seed=Param(int, 12345, msg="random seed for reproducibility"),
                           scaling_factor=Param(float, 1.588, msg="multiplicative factor for ratios to adjust number of galaxies kept"))
 
-    def __init__(self, args, comm=None):
+    def __init__(self, args, **kwargs):
 
-        Selector.__init__(self, args, comm=comm)
+        super().__init__(self, args, **kwargs)
 
         if self.config.redshift_cut < 0:
             raise ValueError("redshift cut must be positive")

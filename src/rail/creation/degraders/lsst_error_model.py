@@ -44,7 +44,7 @@ class LSSTErrorModel(Degrader):
 
         Does standard Degrader initialization and sets up the error model.
         """
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         self.error_model = PhotErrErrorModel(
             **{key: self.config[key] for key in self._photerr_params}
         )

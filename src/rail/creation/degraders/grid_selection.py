@@ -59,7 +59,7 @@ class GridSelection(Selector):
 
     def __init__(self, args, **kwargs):
 
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
 
         if self.config.redshift_cut < 0:
             raise ValueError("redshift cut must be positive")

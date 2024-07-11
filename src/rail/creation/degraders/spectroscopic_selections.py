@@ -68,7 +68,7 @@ class SpecSelection(Selector):
     )
 
     def __init__(self, args, **kwargs):
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         self._validate_settings()
         self.mask = None
         self.rng = None

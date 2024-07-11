@@ -17,7 +17,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "deprecated",
-    "pz-rail-base",
+    "ceci2 @ https://github.com/LSSTDESC/rail_base",
     "astropy",
     "healpy",
     "photerr",

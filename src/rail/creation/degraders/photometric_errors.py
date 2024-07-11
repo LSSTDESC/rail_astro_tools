@@ -87,7 +87,7 @@ class LSSTErrorModel(PhotoErrorModel):
     
     def __init__(self, args, **kwargs):
 
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         
         self.set_params(peLsstErrorParams)   
         self.peNoiseModel = peLsstErrorModel
@@ -105,7 +105,7 @@ class RomanErrorModel(PhotoErrorModel):
     
     def __init__(self, args, **kwargs):
 
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         
         self.set_params(peRomanErrorParams)    
         self.peNoiseModel = peRomanErrorModel
@@ -122,7 +122,7 @@ class EuclidErrorModel(PhotoErrorModel):
     
     def __init__(self, args, **kwargs):
 
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         
         self.set_params(peEuclidErrorParams)    
         self.peNoiseModel = peEuclidErrorModel

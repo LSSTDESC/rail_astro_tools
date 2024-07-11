@@ -47,7 +47,7 @@ class LineConfusion(Noisifier):
     def __init__(self, args, **kwargs):
         """
         """
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         # validate parameters
         if self.config.true_wavelen < 0:
             raise ValueError("true_wavelen must be positive, not {self.config.true_wavelen}")
@@ -118,7 +118,7 @@ class InvRedshiftIncompleteness(Selector):
     def __init__(self, args, **kwargs):
         """
         """
-        super().__init__(self, args, **kwargs)
+        super().__init__(args, **kwargs)
         if self.config.pivot_redshift < 0:
             raise ValueError("pivot redshift must be positive, not {self.config.pivot_redshift}")
 

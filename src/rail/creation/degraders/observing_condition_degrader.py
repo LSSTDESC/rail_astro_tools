@@ -116,8 +116,8 @@ class ObsCondition(Noisifier):
         }
     
 
-    def __init__(self, args, comm=None):
-        Noisifier.__init__(self, args, comm=comm)
+    def __init__(self, args, **kwargs):
+        super().__init__(self, args, **kwargs)
 
         # store a list of keys relevant for
         # survey conditions;

@@ -155,7 +155,7 @@ class SpecSelection(Selector):
         # get the bands and bandNames present in the data
         data = self.get_data("input", allow_missing=True)
         self.validate_colnames(data)
-        self.mask = np.product(~np.isnan(data.to_numpy()), axis=1)
+        self.mask = np.prod(~np.isnan(data.to_numpy()), axis=1)
         self.invalid_cut(data)
         self.selection(data)
         if self.config.downsample is True:

@@ -13,6 +13,11 @@ MAX_ORDER = 29
 MAX_NSIDE = 2**MAX_ORDER
 
 
+class MapsIncompatibleError(ValueError):
+    def __init__(self, attr: str):
+        super().__init__(f"'{attr}' does not match")
+
+
 def pix_uniform_randoms(
     nside: int, ipix: NDArray[np.int64], n_rand: int
 ) -> TypeRaDecTuple:
@@ -64,7 +69,10 @@ class HealpixMap:
     def __repr__(self) -> str:
         nside = self.nside
         npix = self.npix
-        return f"{self.__class__.__name__}({nside=}, {npix=})"
+        return f"{self.__class__.__name__}({nside=:,d}, {npix=:,d})"
+
+    def __getitem__(self, ipix) -> ArrayLike:
+        return self.values[ipix]
 
     @property
     def nside(self) -> int:
@@ -78,26 +86,20 @@ class HealpixMap:
     def ipix(self) -> NDArray[np.int64]:
         return np.arange(0, self.npix)
 
-    def get_ipix_nonzero(self) -> NDArray[np.int64]:
-        return np.where(self.values != 0.0)[0]
-
     @property
     def npix(self) -> int:
         return len(self.values)
-
-    def get_npix_nonzero(self) -> int:
-        return np.count_nonzero(self.values)
 
     @classmethod
     def read_fits(cls, fpath: str, *, nest: bool = False) -> HealpixMap:
         return cls(healpy.read_map(fpath), nest=nest)
 
     @classmethod
-    def empty(cls, nside: int, *, nest: bool = False) -> HealpixMap:
+    def zeros(cls, nside: int, *, dtype=np.float64, nest: bool = False) -> HealpixMap:
         if not healpy.isnsideok(nside):
             raise ValueError(f"invalid {nside=}")
         npix = healpy.nside2npix(nside)
-        values = np.zeros(npix)
+        values = np.zeros(npix, dtype=dtype)
         return cls(values, nest=nest)
 
     @classmethod
@@ -109,12 +111,13 @@ class HealpixMap:
         dec_min: float,
         dec_max: float,
         *,
+        dtype=np.bool_,
         nest: bool = False,
     ) -> HealpixMap:
-        new = cls.empty(nside, nest=nest)
+        new = cls.zeros(nside, nest=nest)
         ra, dec = new.get_centers()
         mask = (ra >= ra_min) & (ra < ra_max) & (dec >= dec_min) & (dec < dec_max)
-        return cls(mask, nest=nest)
+        return cls(mask.astype(dtype=dtype, copy=False), nest=nest)
 
     @classmethod
     def from_ipix(
@@ -125,7 +128,7 @@ class HealpixMap:
         *,
         nest: bool = False,
     ) -> HealpixMap:
-        new = cls.empty(nside, nest=nest)
+        new = cls.zeros(nside, nest=nest)
         new.values[ipix] = values
         return new
 
@@ -143,11 +146,31 @@ class HealpixMap:
         ipix_unique, pix_count = np.unique(ipix, return_counts=True)
         return cls.from_ipix(nside, ipix_unique, values=pix_count if count else 1.0, nest=nest)
 
+    def get_ipix_nonzero(self) -> NDArray[np.int64]:
+        return np.where(self.values != 0.0)[0]
+
+    def get_npix_nonzero(self) -> int:
+        return np.count_nonzero(self.values)
+
+    def get_centers(self) -> TypeRaDecTuple:
+        return healpy.pix2ang(
+            self.nside, self.get_ipix_nonzero(), nest=self.nest, lonlat=True
+        )
+
+    def copy(self) -> HealpixMap:
+        return self.__class__(self.values.copy(), nest=(self.nest == True))
+
+    def to_resolution(self, nside: int, *, invariant: bool = False) -> HealpixMap:
+        return self.__class__(
+            healpy.ud_grade(self.values, nside, power=-2 if invariant else None),
+            nest=self.nest,
+        )
+
     def _operator(self, other, operator_func):
         if isinstance(other, self.__class__):
             for attr in ("nside", "nest"):
                 if getattr(self, attr) != getattr(other, attr):
-                    raise ValueError(f"'{attr}' does not match")
+                    raise MapsIncompatibleError(attr)
             return self.__class__(
                 operator_func(self.values, other.values),
                 nest=self.nest,
@@ -164,56 +187,62 @@ class HealpixMap:
         return NotImplemented
 
     def __add__(self, other) -> HealpixMap:
-        return self._operator(other, operator.add)
+        return self._operator(other, np.add)
 
     def __sub__(self, other) -> HealpixMap:
-        return self._operator(other, operator.sub)
+        return self._operator(other, np.subtract)
 
     def __mul__(self, other) -> HealpixMap:
-        return self._operator(other, operator.mul)
+        return self._operator(other, np.multiply)
 
     def __truediv__(self, other) -> HealpixMap:
-        return self._operator(other, operator.__truediv__)
+        return self._operator(other, np.divide)
 
-    def __getitem__(self, ipix) -> ArrayLike:
-        return self.values[ipix]
-
-    def copy(self) -> HealpixMap:
-        return self.__class__(self.values.copy(), nest=(self.nest == True))
-
-    def to_resolution(self, nside: int, *, invariant: bool = False) -> HealpixMap:
-        return self.__class__(
-            healpy.ud_grade(self.values, nside, power=-2 if invariant else None),
-            nest=self.nest,
-        )
-
-    def clip_values(self, lower: float | None = None, upper: float | None = None) -> HealpixMap:
-        new = self.copy()
+    def clip_values(self, lower: float | None = None, upper: float | None = None, *, inplace: bool = False) -> HealpixMap:
+        if inplace:
+            new = self
+        else:
+            new = self.copy()
         if lower is not None:
             new.values = np.where(new.values < lower, lower, new.values)
         if upper is not None:
             new.values = np.where(new.values > upper, upper, new.values)
         return new
 
-    def clip_negative(self) -> HealpixMap:
-        return self.clip_values(lower=0.0)
+    def clip_negative(self, *, inplace: bool = False) -> HealpixMap:
+        return self.clip_values(lower=0.0, inplace=inplace)
 
-    def as_mask(self) -> HealpixMap:
-        new = self.clip_negative()
+    def as_mask(self, *, inplace: bool = False) -> HealpixMap:
+        new = self.clip_negative(inplace=inplace)
         new.values = new.values.astype(np.bool_)
         return new
 
-    def area(self, count_nonzero: bool = True) -> float:
-        if count_nonzero:
-            area_frac = self.get_npix_nonzero() / self.npix
-        else:
-            area_frac = self.values.sum() / self.npix
+    def _logical_operator(self, other, operator_func):
+        if isinstance(other, self.__class__):
+            if self.values.dtype != np.bool_ or other.values.dtype != np.bool_:
+                raise TypeError("logical operators only operate on boolean maps")
+            return self._operator(other, operator_func)
+        return NotImplemented
+
+    def __not__(self, other) -> HealpixMap:
+        return self._logical_operator(other, np.logical_not)
+
+    def __and__(self, other) -> HealpixMap:
+        return self._logical_operator(other, np.logical_and)
+
+    def __or__(self, other) -> HealpixMap:
+        return self._logical_operator(other, np.logical_or)
+
+    def __xor__(self, other) -> HealpixMap:
+        return self._logical_operator(other, np.logical_xor)
+
+    def area_nonzero(self) -> float:
+        area_frac = self.get_npix_nonzero() / self.npix
         return area_frac * (360.0 * 360.0 / np.pi)  # convert to deg^2
 
-    def get_centers(self) -> TypeRaDecTuple:
-        return healpy.pix2ang(
-            self.nside, self.get_ipix_nonzero(), nest=self.nest, lonlat=True
-        )
+    def area_sumval(self) -> float:
+        area_frac = self.values.sum() / self.npix
+        return area_frac * (360.0 * 360.0 / np.pi)  # convert to deg^2
 
     def get_ipix_from_coord(
         self,
@@ -230,7 +259,7 @@ class HealpixMap:
         ipix = self.get_ipix_from_coord(ra, dec)
         return self.values[ipix] != 0.0
 
-    def apply(
+    def mask_coords(
         self,
         ra: NDArray[np.float64],
         dec: NDArray[np.float64],

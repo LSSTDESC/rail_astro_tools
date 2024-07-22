@@ -67,8 +67,8 @@ class SpecSelection(Selector):
         random_seed=Param(int, 42, msg="random seed for reproducibility"),
     )
 
-    def __init__(self, args, comm=None):
-        Selector.__init__(self, args, comm=comm)
+    def __init__(self, args, **kwargs):
+        super().__init__(args, **kwargs)
         self._validate_settings()
         self.mask = None
         self.rng = None

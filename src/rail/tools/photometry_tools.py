@@ -95,8 +95,8 @@ class PhotometryManipulator(RailStage, ABC):
     inputs = [('input', PqHandle)]
     outputs = [('output', PqHandle)]
 
-    def __init__(self, args, comm=None):
-        super().__init__(args, comm)
+    def __init__(self, args, **kwargs):
+        super().__init__(args, **kwargs)
         self._check_config()
         # convenience remapping of parameters
         self.value_columns = self.config.value_columns
@@ -371,9 +371,6 @@ class LSSTFluxToMagConverter(RailStage):
     inputs = [('input', PqHandle)]
     outputs = [('output', Hdf5Handle)]
 
-    def __init__(self, args, comm=None):
-        RailStage.__init__(self, args, comm=comm)
-
     def _flux_to_mag(self, flux_vals):
         return -2.5*np.log10(flux_vals) + self.config.mag_offset
 
@@ -452,9 +449,6 @@ class DustMapBase(RailStage):
         fetch_func = dust_map_submod.fetch
         fetch_func()
         
-            
-    def __init__(self, args, comm=None):
-        RailStage.__init__(self, args, comm=comm)
 
     def run(self):
         data = self.get_data('input', allow_missing=True)

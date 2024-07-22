@@ -29,6 +29,7 @@ def pix_uniform_randoms(
 def map_uniform_randoms(
     values: NDArray,
     n_rand: int,
+    *,
     values_as_density: bool = True,
     nest: bool = False,
 ) -> TypeRaDecTuple:
@@ -88,7 +89,7 @@ class HealpixMap:
         return np.count_nonzero(self.values)
 
     @classmethod
-    def read_fits(cls, fpath: str, nest: bool = False) -> HealpixMap:
+    def read_fits(cls, fpath: str, *, nest: bool = False) -> HealpixMap:
         return cls(healpy.read_map(fpath), nest=nest)
 
     @classmethod
@@ -180,7 +181,7 @@ class HealpixMap:
     def copy(self) -> HealpixMap:
         return self.__class__(self.values.copy(), nest=(self.nest == True))
 
-    def to_resolution(self, nside: int, invariant: bool = False) -> HealpixMap:
+    def to_resolution(self, nside: int, *, invariant: bool = False) -> HealpixMap:
         return self.__class__(
             healpy.ud_grade(self.values, nside, power=-2 if invariant else None),
             nest=self.nest,
@@ -240,6 +241,11 @@ class HealpixMap:
     def uniform_randoms(
         self,
         n_rand: int,
+        *,
         values_as_density: bool = True,
     ) -> TypeRaDecTuple:
-        return map_uniform_randoms(self.values, n_rand, values_as_density, self.nest)
+        return map_uniform_randoms(
+            self.values,
+            n_rand, values_as_density=values_as_density,
+            nest=self.nest,
+        )

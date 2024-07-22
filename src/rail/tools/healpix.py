@@ -79,7 +79,7 @@ class HealpixMap:
         return self._nside
 
     @property
-    def nest(self) -> int:
+    def nest(self) -> bool:
         return self._nest
 
     @property
@@ -91,8 +91,15 @@ class HealpixMap:
         return len(self.values)
 
     @classmethod
-    def read_fits(cls, fpath: str, *, nest: bool = False) -> HealpixMap:
-        return cls(healpy.read_map(fpath), nest=nest)
+    def read_fits(cls, fpath: str, **kwargs) -> HealpixMap:
+        nest = kwargs.get("nest", False)
+        field = kwargs.pop("field", 0)
+        if field is not None and not isinstance(field, int):
+            raise ValueError("'field' must be integer, can only read single map column")
+        values = healpy.read_map(fpath, field, **kwargs)
+        if np.issubdtype(values.dtype, np.floating):
+            values = np.where(values == healpy.UNSEEN, 0.0, values)
+        return cls(values, nest=nest)
 
     @classmethod
     def zeros(cls, nside: int, *, dtype=np.float64, nest: bool = False) -> HealpixMap:
@@ -124,30 +131,56 @@ class HealpixMap:
         cls,
         nside: int,
         ipix: NDArray[np.int64],
-        values: NDArray | float = 1.0,
+        values: ArrayLike | bool = True,
         *,
         nest: bool = False,
     ) -> HealpixMap:
-        new = cls.zeros(nside, nest=nest)
+        dtype = np.dtype(type(values))
+        new = cls.zeros(nside, nest=nest, dtype=dtype)
         new.values[ipix] = values
         return new
 
     @classmethod
-    def build(
+    def build_mask(
         cls,
         nside: int,
         ra: NDArray[np.float64],
         dec: NDArray[np.float64],
-        count: bool = False,
+        *,
+        nest: bool = False,
+    ) -> HealpixMap:
+        ipix = healpy.ang2pix(nside, ra, dec, lonlat=True, nest=nest)
+        ipix_unique = np.unique(ipix)
+        return cls.from_ipix(nside, ipix_unique, values=True, nest=nest)
+
+    @classmethod
+    def build_count(
+        cls,
+        nside: int,
+        ra: NDArray[np.float64],
+        dec: NDArray[np.float64],
         *,
         nest: bool = False,
     ) -> HealpixMap:
         ipix = healpy.ang2pix(nside, ra, dec, lonlat=True, nest=nest)
         ipix_unique, pix_count = np.unique(ipix, return_counts=True)
-        return cls.from_ipix(nside, ipix_unique, values=pix_count if count else 1.0, nest=nest)
+        return cls.from_ipix(nside, ipix_unique, values=pix_count, nest=nest)
+
+    @classmethod
+    def build_density(
+        cls,
+        nside: int,
+        ra: NDArray[np.float64],
+        dec: NDArray[np.float64],
+        *,
+        nest: bool = False,
+    ) -> HealpixMap:
+        new = cls.build_count(nside, ra, dec, nest=nest)
+        new.values = new.values / healpy.nside2pixarea(nside)
+        return new
 
     def get_ipix_nonzero(self) -> NDArray[np.int64]:
-        return np.where(self.values != 0.0)[0]
+        return np.nonzero(self.values)
 
     def get_npix_nonzero(self) -> int:
         return np.count_nonzero(self.values)
@@ -244,7 +277,7 @@ class HealpixMap:
         area_frac = self.values.sum() / self.npix
         return area_frac * (360.0 * 360.0 / np.pi)  # convert to deg^2
 
-    def get_ipix_from_coord(
+    def get_ipix_from_coords(
         self,
         ra: ArrayLike[np.float64],
         dec: ArrayLike[np.float64],
@@ -278,3 +311,7 @@ class HealpixMap:
             n_rand, values_as_density=values_as_density,
             nest=self.nest,
         )
+
+    def write_fits(self, fpath: str, **kwargs) -> HealpixMap:
+        kwargs.pop("nest", None)
+        healpy.write_map(fpath, self.values, nest=self.nest, **kwargs)

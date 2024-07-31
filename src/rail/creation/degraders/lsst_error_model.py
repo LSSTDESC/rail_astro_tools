@@ -38,13 +38,13 @@ class LSSTErrorModel(Degrader):
             required=False,
         )
 
-    def __init__(self, args, comm=None):
+    def __init__(self, args, **kwargs):
         """
         Constructor
 
         Does standard Degrader initialization and sets up the error model.
         """
-        Degrader.__init__(self, args, comm=comm)
+        super().__init__(args, **kwargs)
         self.error_model = PhotErrErrorModel(
             **{key: self.config[key] for key in self._photerr_params}
         )

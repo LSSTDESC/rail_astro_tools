@@ -67,8 +67,8 @@ class SpecSelection(Selector):
         random_seed=Param(int, 42, msg="random seed for reproducibility"),
     )
 
-    def __init__(self, args, comm=None):
-        Selector.__init__(self, args, comm=comm)
+    def __init__(self, args, **kwargs):
+        super().__init__(args, **kwargs)
         self._validate_settings()
         self.mask = None
         self.rng = None
@@ -155,7 +155,7 @@ class SpecSelection(Selector):
         # get the bands and bandNames present in the data
         data = self.get_data("input", allow_missing=True)
         self.validate_colnames(data)
-        self.mask = np.product(~np.isnan(data.to_numpy()), axis=1)
+        self.mask = np.prod(~np.isnan(data.to_numpy()), axis=1)
         self.invalid_cut(data)
         self.selection(data)
         if self.config.downsample is True:

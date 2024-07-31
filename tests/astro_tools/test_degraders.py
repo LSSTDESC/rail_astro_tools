@@ -90,6 +90,26 @@ def test_InvRedshiftIncompleteness_returns_correct_shape(data):
     assert degraded_data.shape[1] == data.data.shape[1]
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
+    
+def test_LineConfusion_returns_correct_shape(data):
+    """Make sure returns same number of columns, fewer rows"""
+    OII = 3727
+    OIII = 5007
+
+    lc_2p_0II_0III = LineConfusion.make_stage(
+        name="lc_2p_0II_0III", true_wavelen=OII, wrong_wavelen=OIII, frac_wrong=0.02
+    )
+    lc_1p_0III_0II = LineConfusion.make_stage(
+        name="lc_1p_0III_0II", true_wavelen=OIII, wrong_wavelen=OII, frac_wrong=0.01
+    )
+    degraded_data = lc_1p_0III_0II(
+        lc_2p_0II_0III(data)
+    ).data
+    assert degraded_data.shape[0] <= data.data.shape[0]
+    assert degraded_data.shape[1] == data.data.shape[1]
+    os.remove(lc_2p_0II_0III.get_output(lc_2p_0II_0III.get_aliased_tag("output"), final_name=True))
+    os.remove(lc_1p_0III_0II.get_output(lc_1p_0III_0II.get_aliased_tag("output"), final_name=True))
+    
 
 @pytest.mark.parametrize(
     "percentile_cut,redshift_cut,errortype",

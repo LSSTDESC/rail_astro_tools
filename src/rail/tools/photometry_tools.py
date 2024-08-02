@@ -420,16 +420,16 @@ class DustMapBase(RailStage):
 
     config_options = RailStage.config_options.copy()
     config_options.update(
-        bands=Param(str, default='ugrizy', msg="Names of the bands"),
         ra_name=Param(str, default='ra', msg="Name of the RA column"),
         dec_name=Param(str, default='dec', msg="Name of the DEC column"),
         mag_name=Param(str, default="mag_{band}_lsst", msg="Template for the magnitude columns"),
-        band_a_env=Param(list, default=[4.81,3.64,2.70,2.06,1.58,1.31], msg="Extinction values"),
+        band_a_env=SHARED_PARAMS,
         dustmap_name=Param(str, default='sfd', msg="Name of the dustmap in question"),
         dustmap_dir=Param(str, required=True, msg="Directory with dustmaps"),
         copy_cols=Param(list, default=[], msg="Additional columns to copy"),
         copy_all_cols=Param(bool, default=False, msg="Copy all the columns"),
     )
+        
     inputs = [('input', PqHandle)]
     outputs = [('output', PqHandle)]
 
@@ -470,10 +470,9 @@ class DustMapBase(RailStage):
             raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
         ebvvec = dust_map(coords)
         band_mag_name_list=[]
-        for i, band_ in enumerate(self.config.bands):
-            band_mag_name = self.config.mag_name.format(band=band_)
+        for band_mag_name, a_env_value in self.config.band_a_env.items():
             mag_vals = data[band_mag_name]
-            out_data[band_mag_name] = self._calc_values(mag_vals, ebvvec, self.config.band_a_env[i])
+            out_data[band_mag_name] = self._calc_values(mag_vals, ebvvec, a_env_value)
             band_mag_name_list.append(band_mag_name)
        
         # check if copy_all_cols set to true:

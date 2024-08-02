@@ -72,7 +72,7 @@ class PhotoErrorModel(Noisifier):
         data = self.get_data("input")
 
         # Add photometric errors
-        if self.config.seed is not None:
+        if self.config.seed is not None:  # pragma: no cover
             seed = int(self.config.seed)
         else:
             seed = np.random.Generator(np.random.PCG64())

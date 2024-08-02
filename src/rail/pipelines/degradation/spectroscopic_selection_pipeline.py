@@ -16,23 +16,23 @@ from rail.core.utils import RAILDIR
 
 SELECTORS = dict(
     GAMA = dict(
-        Selector='SpecSelection_GAMA',
+        Select='SpecSelection_GAMA',
         Module='rail.creation.degraders.spectroscopic_selections',
     ),
     BOSS = dict(
-        Selector='SpecSelection_BOSS',
+        Select='SpecSelection_BOSS',
         Module='rail.creation.degraders.spectroscopic_selections',
     ),
     VVDSf02 = dict(
-        Selector='SpecSelection_VVDSf02',
+        Select='SpecSelection_VVDSf02',
         Module='rail.creation.degraders.spectroscopic_selections',
     ),
     zCOSMOS = dict(
-        Selector='SpecSelection_zCOSMOS',
+        Select='SpecSelection_zCOSMOS',
         Module='rail.creation.degraders.spectroscopic_selections',
     ),
     HSC = dict(
-        Selector='SpecSelection_HSC',
+        Select='SpecSelection_HSC',
         Module='rail.creation.degraders.spectroscopic_selections',
     ),
 )
@@ -66,7 +66,7 @@ class SpectroscopicSelectionPipeline(RailPipeline):
             config_pars['colnames'] = colnames            
 
         for key, val in selectors.items():
-            the_class = ceci.PipelineStage.get_stage(val['Selector'], val['Module'])
+            the_class = ceci.PipelineStage.get_stage(val['Select'], val['Module'])
             the_selector = the_class.make_and_connect(
                 name=f'select_{key}',
                 **config_pars,

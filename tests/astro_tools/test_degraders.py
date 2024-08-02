@@ -13,7 +13,7 @@ from rail.creation.degraders.spectroscopic_degraders import InvRedshiftIncomplet
 from rail.creation.degraders.spectroscopic_selections import *
 from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
-from rail.creation.degraders.photometric_errors import LSSTErrorModel
+from rail.creation.degraders.photometric_errors import EuclidErrorModel, LSSTErrorModel
 
 
 @pytest.fixture
@@ -391,3 +391,9 @@ def test_LSSTErrorModel_returns_correct_columns(data):
         assert f"{band}_err" in degraded_data.columns
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
+
+def test_EucliErrorModel(data):
+    # Setup the stage
+    degrader = EuclidErrorModel.make_stage()
+
+    

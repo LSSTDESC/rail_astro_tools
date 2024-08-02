@@ -121,7 +121,6 @@ class SpecSelection(Selector):
             if band not in self.config.colnames.keys():
                 continue
             colname = self.config.colnames[band]
-            breakpoint()
             self.mask &= data[colname] != nondetect_val
             self.mask &= ~np.isnan(data[colname])
             self.mask &= np.isfinite(data[colname])

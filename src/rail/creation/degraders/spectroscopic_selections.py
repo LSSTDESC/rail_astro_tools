@@ -510,7 +510,6 @@ class SpecSelection_zCOSMOS(SpecSelection):
         self.mask &= mask
 
     def selection(self, data):
-        breakpoint()
         self.photometryCut(data)
         self.speczSuccess(data)
 

@@ -27,14 +27,6 @@ class UnrecBlModel(Degrader):
                           b=Param(str, 'semi_minor', msg='semi minor axis column name'),
                           theta=Param(str, 'orientation', msg='orientation angle column name'))
 
-    def __init__(self, args, comm=None):
-        """
-        Constructor
-
-        Does standard Degrader initialization and sets up the bl model.
-        """
-        Degrader.__init__(self, args, comm=comm)
-
     def __match_bl__(self, data):
 
         """Group sources with friends of friends"""

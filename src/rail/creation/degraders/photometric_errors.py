@@ -4,6 +4,7 @@ error models defined in the package photerr
 
 Author: John Franklin Crenshaw, Tianqing Zhang
 """
+import numpy as np
 from dataclasses import MISSING
 
 from ceci.config import StageParameter as Param
@@ -71,7 +72,11 @@ class PhotoErrorModel(Noisifier):
         data = self.get_data("input")
 
         # Add photometric errors
-        obsData = self.noiseModel(data, random_state=self.config.seed)
+        if self.config.seed is not None:
+            seed = int(self.config.seed)
+        else:
+            seed = np.random.Generator(np.random.PCG64())
+        obsData = self.noiseModel(data, random_state=seed)
         
         # Return the new catalog
         self.add_data("output", obsData)

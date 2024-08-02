@@ -13,7 +13,7 @@ from rail.creation.degraders.spectroscopic_degraders import InvRedshiftIncomplet
 from rail.creation.degraders.spectroscopic_selections import *
 from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
-from rail.creation.degraders.lsst_error_model import LSSTErrorModel
+from rail.creation.degraders.photometric_errors import LSSTErrorModel
 
 
 @pytest.fixture

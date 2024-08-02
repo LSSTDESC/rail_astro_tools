@@ -7,7 +7,6 @@ import numpy as np
 
 # Various rail modules
 from rail.tools.photometry_tools import Dereddener, Reddener
-from rail.creation.degraders.lsst_error_model import LSSTErrorModel
 
 from rail.core.stage import RailStage, RailPipeline
 

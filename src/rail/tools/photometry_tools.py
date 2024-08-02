@@ -453,7 +453,10 @@ class DustMapBase(RailStage):
     def run(self):
         data = self.get_data('input', allow_missing=True)
         out_data = {}
-        coords = SkyCoord(data[self.config.ra_name], data[self.config.dec_name], unit = 'deg',frame='fk5')
+        coords = SkyCoord(
+            np.array(data[self.config.ra_name]),
+            np.array(data[self.config.dec_name]),
+            unit = 'deg',frame='fk5')
         dust_map_dict = dict(sfd=dustmaps_sfd.SFDQuery)
         try:
             dust_map_class = dust_map_dict[self.config.dustmap_name]

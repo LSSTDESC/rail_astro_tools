@@ -36,7 +36,7 @@ class SpecSelection(Selector):
         Random seed for reproducibility
     """
 
-    name = "specselection"
+    name = "SpecSelection"
     config_options = Selector.config_options.copy()
     config_options.update(
         N_tot=Param(int, 10000, msg="Number of selected sources"),
@@ -121,9 +121,9 @@ class SpecSelection(Selector):
             if band not in self.config.colnames.keys():
                 continue
             colname = self.config.colnames[band]
-            self.mask &= (np.abs(data[colname]) < nondetect_val) & (
-                ~np.isnan(data[colname])
-            )
+            self.mask &= data[colname] != nondetect_val
+            self.mask &= ~np.isnan(data[colname])
+            self.mask &= np.isfinite(data[colname])
 
     def downsampling_N_tot(self):
         """Randomly sample down the objects to a given number of data objects.
@@ -180,7 +180,7 @@ class SpecSelection_GAMA(SpecSelection):
     The necessary column is r band.
     """
     
-    name = "specselection_gama"
+    name = "SpecSelection_GAMA"
 
     def selection(self, data):
         """GAMA selection function. """
@@ -208,7 +208,7 @@ class SpecSelection_BOSS(SpecSelection):
     For BOSS selection, the data should at least include gri bands.
     """
 
-    name = "specselection_boss"
+    name = "SpecSelection_BOSS"
 
     def selection(self, data):
         """The BOSS selection function."""
@@ -268,7 +268,7 @@ class SpecSelection_DEEP2(SpecSelection):
     conversion degrader is ready, this subclass will be updated accordingly.
     """
 
-    name = "specselection_deep2"
+    name = "SpecSelection_DEEP2"
 
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
@@ -355,7 +355,7 @@ class SpecSelection_VVDSf02(SpecSelection):
     Necessary columns are i band magnitude and redshift.
     """
 
-    name = "specselection_VVDSf02"
+    name = "SpecSelection_VVDSf02"
 
     def photometryCut(self, data):
         """Photometric cut of VVDS 2h-field based on LeFèvre+05.
@@ -466,7 +466,7 @@ class SpecSelection_zCOSMOS(SpecSelection):
     For zCOSMOS, the data should at least include i band and redshift.
     """
 
-    name = "specselection_zCOSMOS"
+    name = "SpecSelection_zCOSMOS"
 
     def photometryCut(self, data):
         """Photometry cut for zCOSMOS based on Lilly+09.
@@ -527,7 +527,7 @@ class SpecSelection_HSC(SpecSelection):
     For HSC, the data should at least include giz bands and redshift.
     """
 
-    name = "specselection_HSC"
+    name = "SpecSelection_HSC"
 
     def photometryCut(self, data):
         """HSC galaxies were binned in color magnitude space with i-band mag

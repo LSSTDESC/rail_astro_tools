@@ -52,6 +52,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
 
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
+            copy_all_cols=True,
         )
 
         previous_stage = self.reddener
@@ -68,4 +69,5 @@ class ApplyPhotErrorsPipeline(RailPipeline):
         self.dereddener_errors = Dereddener.build(
             dustmap_dir=dustmap_dir,
             connections=dict(input=previous_stage.io.output),
+            copy_all_cols=True,
         )

@@ -55,7 +55,14 @@ class PhotoErrorModel(Noisifier):
             )
 
     def reload_pars(self, args):
-        self.load_configs(args)
+        """ This is needed b/c the parameters are dynamically defined, 
+        so we have to reload them _after_ then have been defined """
+        copy_args = args.copy()
+        if isinstance(args, dict):
+            copy_args['config'] = args
+        else:  # pragma: no cover
+            copy_args['config'] = vars(args)            
+        self.load_configs(copy_args)
         self._io_checked = False
         self.check_io()
         

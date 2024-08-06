@@ -45,7 +45,7 @@ class PhotoErrorModel(Noisifier):
                 default = val.default_factory()
             else:
                 default = val.default
-
+                
             # Add this param to config_options
             self.config[key] = Param(
                 None,  # Let PhotErr handle type checking
@@ -53,6 +53,11 @@ class PhotoErrorModel(Noisifier):
                 msg="See the main docstring for details about this parameter.",
                 required=False,
             )
+
+    def reload_pars(self, args):
+        self.load_configs(args)
+        self._io_checked = False
+        self.check_io()
         
     def _initNoiseModel(self):
         """
@@ -67,7 +72,6 @@ class PhotoErrorModel(Noisifier):
         """
         Add noise to the input catalog
         """
-        
         # Load the input catalog
         data = self.get_data("input")
 
@@ -95,9 +99,8 @@ class LSSTErrorModel(PhotoErrorModel):
         super().__init__(args, **kwargs)
         
         self.set_params(peLsstErrorParams)   
+        self.reload_pars(args)
         self.peNoiseModel = peLsstErrorModel
-        
-
         
         
 class RomanErrorModel(PhotoErrorModel):
@@ -113,6 +116,7 @@ class RomanErrorModel(PhotoErrorModel):
         super().__init__(args, **kwargs)
         
         self.set_params(peRomanErrorParams)    
+        self.reload_pars(args)
         self.peNoiseModel = peRomanErrorModel
 
                 
@@ -130,4 +134,5 @@ class EuclidErrorModel(PhotoErrorModel):
         super().__init__(args, **kwargs)
         
         self.set_params(peEuclidErrorParams)    
+        self.reload_pars(args)
         self.peNoiseModel = peEuclidErrorModel

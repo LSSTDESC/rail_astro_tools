@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+from ceci.config import StageParameter as Param
 from rail.creation.selector import Selector
 from rail.creation.noisifier import Noisifier
 
@@ -40,9 +41,11 @@ class LineConfusion(Noisifier):
 
     name = 'LineConfusion'
     config_options = Noisifier.config_options.copy()
-    config_options.update(true_wavelen=float,
-                          wrong_wavelen=float,
-                          frac_wrong=float)
+    config_options.update(
+        true_wavelen=Param(float, required=True, msg="wavelength of the true emission line"),
+        wrong_wavelen=Param(float, required=True, msg="wavelength of the wrong emission line"),
+        frac_wrong=Param(float, required=True, msg="fraction of galaxies with confused emission lines"),
+    )
 
     def __init__(self, args, **kwargs):
         """
@@ -113,7 +116,9 @@ class InvRedshiftIncompleteness(Selector):
 
     name = 'InvRedshiftIncompleteness'
     config_options = Selector.config_options.copy()
-    config_options.update(pivot_redshift=float)
+    config_options.update(
+        pivot_redshift=Param(float, required=True, msg="redshift at which the incompleteness begins"),
+    )    
 
     def __init__(self, args, **kwargs):
         """

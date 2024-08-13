@@ -358,13 +358,15 @@ class LSSTFluxToMagConverter(RailStage):
     name = 'LSSTFluxToMagConverter'
 
     config_options = RailStage.config_options.copy()
-    config_options.update(bands='ugrizy')
-    config_options.update(flux_name="{band}_gaap1p0Flux")
-    config_options.update(flux_err_name="{band}_gaap1p0FluxErr")
-    config_options.update(mag_name="mag_{band}_lsst")
-    config_options.update(mag_err_name="mag_err_{band}_lsst")
-    config_options.update(copy_cols={})
-    config_options.update(mag_offset=31.4)
+    config_options.update(
+        bands=Param(str, default='ugrizy', msg="Names of the bands"),
+        flux_name=Param(str, default="{band}_gaap1p0Flux", msg="Template for band names"),
+        flux_err_name=Param(str, default="{band}_gaap1p0FluxErr", msg="Template for band error column names"),
+        mag_name=Param(str, default="mag_{band}_lsst", msg="Template for magnitude column names"),
+        mag_err_name=Param(str, default="mag_err_{band}_lsst", msg="Template for magnitude error column names"),
+        copy_cols=Param(dict, default={}, msg="Map of other columns to copy"),
+        mag_offset=Param(float, default=31.4, msg="Magntidue offset value"),
+    )
 
     mag_conv = np.log(10)*0.4
 
@@ -417,16 +419,17 @@ class DustMapBase(RailStage):
     name = 'DustMapBase'
 
     config_options = RailStage.config_options.copy()
-    config_options.update(bands='ugrizy')
-    config_options.update(ra_name='ra')
-    config_options.update(dec_name='dec')
-    config_options.update(mag_name="mag_{band}_lsst")
-    config_options.update(band_a_env=[4.81,3.64,2.70,2.06,1.58,1.31])
-    config_options.update(dustmap_name='sfd')
-    config_options.update(dustmap_dir=str)
-    config_options.update(copy_cols=[])
-    config_options.update(copy_all_cols=False)
-
+    config_options.update(
+        bands=Param(str, default='ugrizy', msg="Names of the bands"),
+        ra_name=Param(str, default='ra', msg="Name of the RA column"),
+        dec_name=Param(str, default='dec', msg="Name of the DEC column"),
+        mag_name=Param(str, default="mag_{band}_lsst", msg="Template for the magnitude columns"),
+        band_a_env=Param(list, default=[4.81,3.64,2.70,2.06,1.58,1.31], msg="Extinction values"),
+        dustmap_name=Param(str, default='sfd', msg="Name of the dustmap in question"),
+        dustmap_dir=Param(str, required=True, msg="Directory with dustmaps"),
+        copy_cols=Param(list, default=[], msg="Additional columns to copy"),
+        copy_all_cols=Param(bool, default=False, msg="Copy all the columns"),
+    )
     inputs = [('input', PqHandle)]
     outputs = [('output', PqHandle)]
 

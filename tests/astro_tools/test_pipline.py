@@ -7,6 +7,7 @@ import pytest
     "pipeline_class",
     [
         'rail.pipelines.utility.apply_phot_errors.ApplyPhotErrorsPipeline',
+        'rail.pipelines.utility.blending.BlendingPipeline',
         'rail.pipelines.utility.spectroscopic_selection_pipeline.SpectroscopicSelectionPipeline',
     ]
 )

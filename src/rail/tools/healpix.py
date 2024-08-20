@@ -69,7 +69,7 @@ class HealpixMap:
     def __repr__(self) -> str:
         nside = self.nside
         npix = self.npix
-        return f"{self.__class__.__name__}({nside=:,d}, {npix=:,d})"
+        return f"{type(self).__name__}({nside=:,d}, {npix=:,d})"
 
     def __getitem__(self, ipix) -> ArrayLike:
         return self.values[ipix]
@@ -191,27 +191,27 @@ class HealpixMap:
         )
 
     def copy(self) -> HealpixMap:
-        return self.__class__(self.values.copy(), nest=(self.nest == True))
+        return type(self)(self.values.copy(), nest=(self.nest == True))
 
     def to_resolution(self, nside: int, *, invariant: bool = False) -> HealpixMap:
-        return self.__class__(
+        return type(self)(
             healpy.ud_grade(self.values, nside, power=-2 if invariant else None),
             nest=self.nest,
         )
 
     def _operator(self, other, operator_func):
-        if isinstance(other, self.__class__):
+        if isinstance(other, type(self)):
             for attr in ("nside", "nest"):
                 if getattr(self, attr) != getattr(other, attr):
                     raise MapsIncompatibleError(attr)
-            return self.__class__(
+            return type(self)(
                 operator_func(self.values, other.values),
                 nest=self.nest,
             )
         return NotImplemented
 
     def __eq__(self, other) -> bool:
-        if isinstance(other, self.__class__):
+        if isinstance(other, type(self)):
             return (
                 self.nside == other.nside
                 and self.nest == other.nest
@@ -251,7 +251,7 @@ class HealpixMap:
         return new
 
     def _logical_operator(self, other, operator_func):
-        if isinstance(other, self.__class__):
+        if isinstance(other, type(self)):
             if self.values.dtype != np.bool_ or other.values.dtype != np.bool_:
                 raise TypeError("logical operators only operate on boolean maps")
             return self._operator(other, operator_func)

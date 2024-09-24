@@ -28,7 +28,7 @@ class UnrecBlModel(Degrader):
                           b=Param(str, 'semi_minor', msg='semi minor axis column name'),
                           theta=Param(str, 'orientation', msg='orientation angle column name'))
 
-    outputs = [("output", PqHandle), ("component_index", PqHandle)]
+    outputs = [("output", PqHandle), ("compInd", PqHandle)]
 
     def __call__(self, sample, seed: int = None):
         """The main interface method for ``Degrader``.
@@ -66,7 +66,7 @@ class UnrecBlModel(Degrader):
         self.run()
         self.finalize()
 
-        return {'output':self.get_handle("output"), 'compInd':self.get_handle("component_index")}
+        return {'output':self.get_handle("output"), 'compInd':self.get_handle("compInd")}
 
     def __match_bl__(self, data):
 
@@ -132,5 +132,5 @@ class UnrecBlModel(Degrader):
 
         # Return the new catalog and component index in original catalog
         self.add_data("output", blData)
-        self.add_data("component_index", compInd)
+        self.add_data("compInd", compInd)
 

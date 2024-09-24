@@ -427,7 +427,7 @@ def test_BLModel(data_for_bl):
 
     # Apply the degrader and get the data out
     degraded_data = degrader(data_for_bl)['output'].data
-    truth_components = degrader(data_for_bl)['compInd'].data
+    truth_components = degrader(data_for_bl)['component_index'].data
 
     # Check output data has less rows than input data
     assert degraded_data.shape[0] < data_for_bl.data.shape[0]

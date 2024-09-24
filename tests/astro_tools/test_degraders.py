@@ -424,7 +424,7 @@ def test_BLModel(data_for_bl):
     degrader = UnrecBlModel.make_stage(name='unrec_bl_model', ra_label='ra', dec_label='dec', linking_lengths=1.0, bands='ugrizy')
 
     # Apply the degrader and get the data out
-    outputs = UnrecBlModel(data_for_bl)
+    outputs = degrader(data_for_bl)
     degraded_data = outputs['output'].data
     truth_components = outputs['compInd'].data
 

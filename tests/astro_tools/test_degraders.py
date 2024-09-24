@@ -83,16 +83,13 @@ def data_for_bl():
     DS.__class__.allow_overwrite = True
 
     # generate random normal data
-    columns=['ra', 'dec', 'redshift', 'u', 'g', 'r', 'i', 'z', 'y']
+    columns=['ra', 'dec', 'u', 'g', 'r', 'i', 'z', 'y']
     rng = np.random.default_rng(0)
     x = rng.normal(loc=23, scale=3, size=(1000, len(columns)))
 
     # replace positions with constrained values
     x[:, 0] = np.random.uniform(low=0, high=0.02, size=1000)
     x[:, 1] = np.random.uniform(low=0, high=0.02, size=1000)
-
-    # replace redshifts with reasonable values
-    x[:, 2] = np.linspace(0, 2, x.shape[0])
 
     # return data in handle wrapping a pandas DataFrame
     df = pd.DataFrame(x, columns=columns)
@@ -423,12 +420,19 @@ def test_EucliErrorModel(data):
 
 def test_BLModel(data_for_bl):
     # Setup the stage
-    degrader = UnrecBlModel.make_stage()
+
+    degrader = UnrecBlModel.make_stage(name='unrec_bl_model', ra_label='ra', dec_label='dec', linking_lengths=1.0, bands='ugrizy', seed=1234)
 
     # Apply the degrader and get the data out
-    degraded_data = degrader(data_for_bl).data
+    outputs = degrader(data_for_bl)
+    degraded_data = outputs['output'].data
+    truth_components = outputs['compInd'].data
 
     # Check output data has less rows than input data
     assert degraded_data.shape[0] < data_for_bl.data.shape[0]
 
+    # Check components has the same rows as input data
+    assert truth_components.shape[0] == data_for_bl.data.shape[0]
+
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
+    os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))

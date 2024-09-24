@@ -421,7 +421,7 @@ def test_EucliErrorModel(data):
 def test_BLModel(data_for_bl):
     # Setup the stage
 
-    degrader = UnrecBlModel.make_stage(name='unrec_bl_model', ra_label='ra', dec_label='dec', linking_lengths=1.0, bands='ugrizy')
+    degrader = UnrecBlModel.make_stage(name='unrec_bl_model', ra_label='ra', dec_label='dec', linking_lengths=1.0, bands='ugrizy', seed=1234)
 
     # Apply the degrader and get the data out
     outputs = degrader(data_for_bl)

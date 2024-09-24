@@ -2,6 +2,7 @@
 
 from ceci.config import StageParameter as Param
 from rail.creation.degrader import Degrader
+from rail.core.data import PqHandle
 import numpy as np, pandas as pd
 import FoFCatalogMatching
 
@@ -27,6 +28,46 @@ class UnrecBlModel(Degrader):
                           b=Param(str, 'semi_minor', msg='semi minor axis column name'),
                           theta=Param(str, 'orientation', msg='orientation angle column name'))
 
+    outputs = [("output", PqHandle), ("component_index", PqHandle)]
+
+    def __call__(self, sample, seed: int = None):
+        """The main interface method for ``Degrader``.
+
+        Applies degradation.
+
+        This will attach the sample to this `Degrader` (for introspection and
+        provenance tracking).
+
+        Then it will call the run() and finalize() methods, which need to be
+        implemented by the sub-classes.
+
+        The run() method will need to register the data that it creates to this
+        Estimator by using ``self.add_data('output', output_data)``.
+
+        Finally, this will return a PqHandle providing access to that output
+        data.
+
+        Parameters
+        ----------
+        sample : table-like
+            The sample to be degraded
+        seed : int, default=None
+            An integer to set the numpy random seed
+
+        Returns
+        -------
+        output_data : PqHandle
+            A handle giving access to a table with degraded sample
+        """
+        if seed is not None:
+            self.config.seed = seed
+
+        self.set_data("input", sample)
+        self.run()
+        self.finalize()
+
+        return {'output':self.get_handle("output"), 'compInd':self.get_handle("component_index")}
+
     def __match_bl__(self, data):
 
         """Group sources with friends of friends"""
@@ -43,7 +84,7 @@ class UnrecBlModel(Degrader):
         ## adding the group id as the last column to data
         matchData = pd.merge(data, results, left_index=True, right_index=True)
 
-        return matchData
+        return matchData, results
 
     def __merge_bl__(self, data):
 
@@ -53,30 +94,25 @@ class UnrecBlModel(Degrader):
         unique_id = np.unique(group_id)
 
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
-
-        cols = list(data.columns)
-        ra_ind = cols.index(ra_label)
-        dec_ind = cols.index(dec_label)
-        bands_ind = {b:cols.index(b) for b in self.config.bands}
+        cols = [ra_label, dec_label] + [b for b in self.config.bands] + ['group_id']
 
         N_rows = len(unique_id)
         N_cols = len(cols)
 
         mergeData = np.zeros((N_rows, N_cols))
-        
         for i, id in enumerate(unique_id):
 
             this_group = data.query(f'group_id=={id}')
 
             ## take the average position for the blended source
-            mergeData[i, ra_ind] = this_group[ra_label].mean()
-            mergeData[i, dec_ind] = this_group[dec_label].mean()
+            mergeData[i, cols.index(ra_label)] = this_group[ra_label].mean()
+            mergeData[i, cols.index(dec_label)] = this_group[dec_label].mean()
 
             ## sum up the fluxes into the blended source
             for b in self.config.bands:
-                  mergeData[i, bands_ind[b]] = -2.5*np.log10(np.sum(10**(-this_group[b]/2.5)))
+                  mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(10**(-this_group[b]/2.5)))
 
-        mergeData[:,-1] = unique_id
+        mergeData[:,cols.index('group_id')] = unique_id
         mergeData_df = pd.DataFrame(data=mergeData, columns=cols)
         mergeData_df['group_id'] = mergeData_df['group_id'].astype(int)
 
@@ -89,10 +125,12 @@ class UnrecBlModel(Degrader):
         data = self.get_data("input")
 
         # Match for close-by objects
-        matchData = self.__match_bl__(data)
+        matchData, compInd = self.__match_bl__(data)
 
         # Merge matched objects into unrec-bl
         blData = self.__merge_bl__(matchData)
 
-        # Return the new catalog
+        # Return the new catalog and component index in original catalog
         self.add_data("output", blData)
+        self.add_data("component_index", compInd)
+

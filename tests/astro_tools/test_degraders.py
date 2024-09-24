@@ -426,9 +426,14 @@ def test_BLModel(data_for_bl):
     degrader = UnrecBlModel.make_stage()
 
     # Apply the degrader and get the data out
-    degraded_data = degrader(data_for_bl).data
+    degraded_data = degrader(data_for_bl)['output'].data
+    truth_components = degrader(data_for_bl)['compInd'].data
 
     # Check output data has less rows than input data
     assert degraded_data.shape[0] < data_for_bl.data.shape[0]
 
+    # Check components has the same rows as input data
+    assert truth_components.shape[0] == data_for_bl.data.shape[0]
+
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
+    os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))

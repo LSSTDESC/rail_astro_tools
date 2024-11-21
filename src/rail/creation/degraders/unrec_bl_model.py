@@ -3,6 +3,7 @@
 from ceci.config import StageParameter as Param
 from rail.creation.degrader import Degrader
 from rail.core.data import PqHandle
+from rail.core.common_params import SHARED_PARAMS
 import numpy as np, pandas as pd
 import FoFCatalogMatching
 
@@ -20,7 +21,9 @@ class UnrecBlModel(Degrader):
     config_options.update(ra_label=Param(str, 'ra', msg='ra column name'),
                           dec_label=Param(str, 'dec', msg='dec column name'),
                           linking_lengths=Param(float, 1.0, msg='linking_lengths for FoF matching'),
-                          bands=Param(str, 'ugrizy', msg='name of filters'),
+                          bands=SHARED_PARAMS,
+                          ref_band=SHARED_PARAMS,
+                          redshift_col=SHARED_PARAMS,
                           match_size=Param(bool, False, msg='consider object size for finding blends'),
                           match_shape=Param(bool, False, msg='consider object shape for finding blends'),
                           obj_size=Param(str, 'obj_size', msg='object size column name'),
@@ -29,6 +32,8 @@ class UnrecBlModel(Degrader):
                           theta=Param(str, 'orientation', msg='orientation angle column name'))
 
     outputs = [("output", PqHandle), ("compInd", PqHandle)]
+
+    blend_info_cols = ['group_id', 'n_obj', 'brightest_flux', 'total_flux', 'z_brightest', 'z_weighted', 'z_mean', 'z_stdev']
 
     def __call__(self, sample, seed: int = None):
         """The main interface method for ``Degrader``.
@@ -89,32 +94,70 @@ class UnrecBlModel(Degrader):
     def __merge_bl__(self, data):
 
         """Merge sources within a group into unrecognized blends."""
-        
+
         group_id = data['group_id']
         unique_id = np.unique(group_id)
 
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
-        cols = [ra_label, dec_label] + [b for b in self.config.bands] + ['group_id']
+        cols = [ra_label, dec_label] + [b for b in self.config.bands] + self.blend_info_cols
 
         N_rows = len(unique_id)
         N_cols = len(cols)
 
+        # compute the fluxes once for all the galaxies
+        fluxes = {b:10**(-data[b]/2.5) for b in self.config.bands}
+
+        # pull the column indices
+        idx_ra = cols.index(ra_label)
+        idx_dec = cols.index(dec_label)
+        idx_n_obj = cols.index('n_obj')
+        idx_brightest_flux = cols.index('brightest_flux')
+        idx_total_flux = cols.index('total_flux')
+        idx_z_brightest = cols.index('z_brightest')
+        idx_z_mean = cols.index('z_mean')
+        idx_z_weighted = cols.index('z_weighted')
+        idx_z_stdev = cols.index('z_stdev')
+
         mergeData = np.zeros((N_rows, N_cols))
         for i, id in enumerate(unique_id):
 
-            this_group = data.query(f'group_id=={id}')
+            # Get the mask for this grouping
+            mask = data['group_id'] == id
+
+            # Get the data and fluxes for this grouping
+            this_group = data[mask]
+            these_fluxes = {b:fluxes[b][mask] for b in self.config.bands}
+
+            # Pull put some useful stuff
+            n_obj = len(this_group)
+            ref_fluxes = these_fluxes[self.config.ref_band]
+            these_redshifts = this_group[self.config.redshift_col]
 
             ## take the average position for the blended source
-            mergeData[i, cols.index(ra_label)] = this_group[ra_label].mean()
-            mergeData[i, cols.index(dec_label)] = this_group[dec_label].mean()
+            mergeData[i, idx_ra] = this_group[ra_label].mean()
+            mergeData[i, idx_dec] = this_group[dec_label].mean()
 
             ## sum up the fluxes into the blended source
             for b in self.config.bands:
-                  mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(10**(-this_group[b]/2.5)))
+                mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(these_fluxes[b]))
+
+            brighest_idx = np.argmax(ref_fluxes)
+
+            mergeData[i, idx_n_obj] = n_obj
+            mergeData[i, idx_brightest_flux] = ref_fluxes.max()
+            mergeData[i, idx_total_flux] = np.sum(ref_fluxes)
+            mergeData[i, idx_z_brightest] = these_redshifts.iloc[brighest_idx]
+            mergeData[i, idx_z_mean] = np.mean(these_redshifts)
+            mergeData[i, idx_z_weighted] = np.sum(these_redshifts*ref_fluxes)/np.sum(ref_fluxes)
+            if n_obj > 1:
+                mergeData[i, idx_z_stdev] = np.std(these_redshifts)
+            else:
+                mergeData[i, idx_z_stdev] = 0.
 
         mergeData[:,cols.index('group_id')] = unique_id
         mergeData_df = pd.DataFrame(data=mergeData, columns=cols)
         mergeData_df['group_id'] = mergeData_df['group_id'].astype(int)
+        mergeData_df['n_obj'] = mergeData_df['n_obj'].astype(int)
 
         return mergeData_df
 
@@ -133,4 +176,3 @@ class UnrecBlModel(Degrader):
         # Return the new catalog and component index in original catalog
         self.add_data("output", blData)
         self.add_data("compInd", compInd)
-

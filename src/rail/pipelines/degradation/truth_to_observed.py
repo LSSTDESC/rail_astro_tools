@@ -19,7 +19,7 @@ if 'PZ_DUSTMAP_DIR' not in os.environ:
 
 dustmap_dir = os.path.expandvars("${PZ_DUSTMAP_DIR}")
 
-from .spectroscopic_selection_pipeline.py import SELECTORS, CommonConfigParams
+from .spectroscopic_selection_pipeline import SELECTORS, CommonConfigParams
 from .apply_phot_errors import ERROR_MODELS
 
 
@@ -27,7 +27,7 @@ class TruthToObservedPipeline(RailPipeline):
 
     default_input_dict = dict(input='dummy.in')
 
-    def __init__(self, error_models=None, selectors=None, blending=False)):
+    def __init__(self, error_models=None, selectors=None, blending=False):
         RailPipeline.__init__(self)
 
         DS = RailStage.data_store
@@ -51,7 +51,6 @@ class TruthToObservedPipeline(RailPipeline):
             self.unrec_bl = UnrecBlModel.build()
             previous_stage = self.unrec_bl
 
-        previous_stage = self.reddener
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
             the_error_model = error_model_class.make_and_connect(
@@ -71,10 +70,11 @@ class TruthToObservedPipeline(RailPipeline):
             self.add_stage(dereddener_errors)
             previous_stage = dereddener_errors
             
-            for key, val in selectors.items():
-                the_class = ceci.PipelineStage.get_stage(val['Select'], val['Module'])
+            for key2, val2 in selectors.items():
+                the_class = ceci.PipelineStage.get_stage(val2['Select'], val2['Module'])
                 the_selector = the_class.make_and_connect(
-                    name=f'select_{key}',
+                    name=f'select_{key}_{key2}',
+                    connections=dict(input=previous_stage.io.output),
                     **config_pars,
                 )            
                 self.add_stage(the_selector)

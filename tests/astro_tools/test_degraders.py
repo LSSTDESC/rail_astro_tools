@@ -83,13 +83,14 @@ def data_for_bl():
     DS.__class__.allow_overwrite = True
 
     # generate random normal data
-    columns=['ra', 'dec', 'u', 'g', 'r', 'i', 'z', 'y']
+    columns=['ra', 'dec', 'u', 'g', 'r', 'i', 'z', 'y', 'redshift']
     rng = np.random.default_rng(0)
     x = rng.normal(loc=23, scale=3, size=(1000, len(columns)))
 
     # replace positions with constrained values
     x[:, 0] = np.random.uniform(low=0, high=0.02, size=1000)
     x[:, 1] = np.random.uniform(low=0, high=0.02, size=1000)
+    x[:, 8] = np.random.uniform(low=0, high=3.00, size=1000)
 
     # return data in handle wrapping a pandas DataFrame
     df = pd.DataFrame(x, columns=columns)
@@ -421,7 +422,14 @@ def test_EucliErrorModel(data):
 def test_BLModel(data_for_bl):
     # Setup the stage
 
-    degrader = UnrecBlModel.make_stage(name='unrec_bl_model', ra_label='ra', dec_label='dec', linking_lengths=1.0, bands='ugrizy', seed=1234)
+    degrader = UnrecBlModel.make_stage(
+        name='unrec_bl_model',
+        ra_label='ra',
+        dec_label='dec',
+        linking_lengths=1.0,
+        bands='ugrizy',
+        ref_band='i',
+        seed=1234)
 
     # Apply the degrader and get the data out
     outputs = degrader(data_for_bl)

@@ -14,10 +14,12 @@ import ceci
 
 from rail.core.utils import RAILDIR
 
-if 'PZ_DUSTMAP_DIR' not in os.environ:
+if 'PZ_DUSTMAP_DIR' not in os.environ:  # pragma: no cover
     os.environ['PZ_DUSTMAP_DIR'] = '.'
 
 dustmap_dir = os.path.expandvars("${PZ_DUSTMAP_DIR}")
+
+from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 
 from .spectroscopic_selection_pipeline import SELECTORS, CommonConfigParams
 from .apply_phot_errors import ERROR_MODELS

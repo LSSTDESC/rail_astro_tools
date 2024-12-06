@@ -13,7 +13,7 @@ from rail.core.stage import RailStage, RailPipeline
 import ceci
 
 from rail.core.utils import RAILDIR
-
+from rail.utils import catalog_utils
 from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 
 from .spectroscopic_selection_pipeline import SELECTORS, CommonConfigParams
@@ -60,6 +60,7 @@ class TruthToObservedPipeline(RailPipeline):
                 name=f'error_model_{key}',
                 connections=dict(input=previous_stage.io.output),
                 hdf5_groupname='',
+                renameDict=catalog_utils.CatalogConfigBase.active_class().band_name_dict(),
             )
             self.add_stage(the_error_model)
             previous_stage = the_error_model

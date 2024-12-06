@@ -47,21 +47,27 @@ class PhotoErrorModel(Noisifier):
                 default = val.default
                 
             # Add this param to config_options
-            self.config[key] = Param(
+            # Use setattr() becuase ceci.StageConfig has
+            # implemented __setitem__ to just set the value
+            # rather than add the parameters
+            param = Param(
                 None,  # Let PhotErr handle type checking
                 default,  
                 msg="See the main docstring for details about this parameter.",
                 required=False,
             )
+            setattr(self.config, key, param)
 
     def reload_pars(self, args):
         """ This is needed b/c the parameters are dynamically defined, 
         so we have to reload them _after_ then have been defined """
-        copy_args = args.copy()
         if isinstance(args, dict):
+            # coming from python, add 'config' to the configuration
+            copy_args = args.copy()
             copy_args['config'] = args
         else:  # pragma: no cover
-            copy_args['config'] = vars(args)            
+            # coming from cli, just convert to a dict
+            copy_args = vars(args).copy()
         self.load_configs(copy_args)
         self._io_checked = False
         self.check_io()

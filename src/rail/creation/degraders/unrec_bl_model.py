@@ -24,7 +24,7 @@ class UnrecBlModel(Degrader):
                           dec_label=Param(str, 'dec', msg='dec column name'),
                           linking_lengths=Param(float, 1.0, msg='linking_lengths for FoF matching'),
                           bands=SHARED_PARAMS,
-                          zp_dict=lsst_zp_dict,
+                          zp_dict=Param(dict, lsst_zp_dict, msg='magnitude zeropoints dictionary'),
                           ref_band=SHARED_PARAMS,
                           redshift_col=SHARED_PARAMS,
                           match_size=Param(bool, False, msg='consider object size for finding blends'),

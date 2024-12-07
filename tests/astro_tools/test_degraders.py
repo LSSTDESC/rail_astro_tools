@@ -429,6 +429,7 @@ def test_BLModel(data_for_bl):
         linking_lengths=1.0,
         bands='ugrizy',
         ref_band='i',
+	redshift_col='redshift',
         seed=1234)
 
     # Apply the degrader and get the data out

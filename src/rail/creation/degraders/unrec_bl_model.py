@@ -8,6 +8,8 @@ import numpy as np, pandas as pd
 import FoFCatalogMatching
 
 
+lsst_zp_dict = {'u':12.65, 'g':14.69, 'r':14.56, 'i': 14.38, 'z':13.99, 'y': 13.02}
+
 class UnrecBlModel(Degrader):
     """Model for Creating Unrecognized Blends.
 
@@ -22,6 +24,7 @@ class UnrecBlModel(Degrader):
                           dec_label=Param(str, 'dec', msg='dec column name'),
                           linking_lengths=Param(float, 1.0, msg='linking_lengths for FoF matching'),
                           bands=SHARED_PARAMS,
+                          zp_dict=Param(dict, lsst_zp_dict, msg='magnitude zeropoints dictionary'),
                           ref_band=SHARED_PARAMS,
                           redshift_col=SHARED_PARAMS,
                           match_size=Param(bool, False, msg='consider object size for finding blends'),
@@ -105,7 +108,7 @@ class UnrecBlModel(Degrader):
         N_cols = len(cols)
 
         # compute the fluxes once for all the galaxies
-        fluxes = {b:10**(-data[b]/2.5) for b in self.config.bands}
+        fluxes = {b:10**(-(data[b] - self.config.zp_dict[b])/2.5) for b in self.config.bands}
 
         # pull the column indices
         idx_ra = cols.index(ra_label)
@@ -139,7 +142,7 @@ class UnrecBlModel(Degrader):
 
             ## sum up the fluxes into the blended source
             for b in self.config.bands:
-                mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(these_fluxes[b]))
+                mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(these_fluxes[b])) + self.config.zp_dict[b]
 
             brighest_idx = np.argmax(ref_fluxes)
 

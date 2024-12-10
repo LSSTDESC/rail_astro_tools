@@ -99,7 +99,7 @@ class UnrecBlModel(Degrader):
         unique_id = np.unique(group_id)
 
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
-        cols = [ra_label, dec_label] + [b for b in self.config.bands] + self.blend_info_cols
+        cols = [ra_label, dec_label] + [b for b in self.config.bands] + [self.config.redshift_col] + self.blend_info_cols
 
         N_rows = len(unique_id)
         N_cols = len(cols)
@@ -110,6 +110,7 @@ class UnrecBlModel(Degrader):
         # pull the column indices
         idx_ra = cols.index(ra_label)
         idx_dec = cols.index(dec_label)
+        idx_redshift = cols.index(self.config.redshift_col)
         idx_n_obj = cols.index('n_obj')
         idx_brightest_flux = cols.index('brightest_flux')
         idx_total_flux = cols.index('total_flux')
@@ -142,11 +143,13 @@ class UnrecBlModel(Degrader):
                 mergeData[i, cols.index(b)] = -2.5*np.log10(np.sum(these_fluxes[b]))
 
             brighest_idx = np.argmax(ref_fluxes)
+            redshifts = these_redshifts.iloc[brighest_idx]
 
+            mergeData[i, idx_redshift] = redshifts
             mergeData[i, idx_n_obj] = n_obj
             mergeData[i, idx_brightest_flux] = ref_fluxes.max()
             mergeData[i, idx_total_flux] = np.sum(ref_fluxes)
-            mergeData[i, idx_z_brightest] = these_redshifts.iloc[brighest_idx]
+            mergeData[i, idx_z_brightest] = redshifts
             mergeData[i, idx_z_mean] = np.mean(these_redshifts)
             mergeData[i, idx_z_weighted] = np.sum(these_redshifts*ref_fluxes)/np.sum(ref_fluxes)
             if n_obj > 1:

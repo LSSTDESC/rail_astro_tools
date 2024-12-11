@@ -36,6 +36,9 @@ class TruthToObservedPipeline(RailPipeline):
         DS = RailStage.data_store
         DS.__class__.allow_overwrite = True
 
+        active_catalog_config = catalog_utils.CatalogConfigBase.active_class()
+        band_name_dict = active_catalog_config.band_name_dict()
+
         if error_models is None:
             error_models = ERROR_MODELS.copy()
 
@@ -43,6 +46,8 @@ class TruthToObservedPipeline(RailPipeline):
             selectors = SELECTORS.copy()
 
         config_pars = CommonConfigParams.copy()
+        config_pars['colnames'] = band_name_dict.copy()
+        config_pars['colnames']['redshift'] = active_catalog_config.redshift_col
 
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
@@ -60,7 +65,7 @@ class TruthToObservedPipeline(RailPipeline):
                 name=f'error_model_{key}',
                 connections=dict(input=previous_stage.io.output),
                 hdf5_groupname='',
-                renameDict=catalog_utils.CatalogConfigBase.active_class().band_name_dict(),
+                renameDict=band_name_dict,
             )
             self.add_stage(the_error_model)
             previous_stage = the_error_model

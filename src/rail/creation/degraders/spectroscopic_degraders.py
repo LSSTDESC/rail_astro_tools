@@ -13,9 +13,9 @@ class LineConfusion(Noisifier):
 
     .. code-block:: python
 
-       Example: degrader = LineConfusion(true_wavelen=3727,
-                                         wrong_wavelen=5007,
-                                         frac_wrong=0.05)
+       degrader = LineConfusion(true_wavelen=3727,
+                                wrong_wavelen=5007,
+                                frac_wrong=0.05)
 
     is a degrader that misidentifies 5% of OII lines (at 3727 angstroms)
     as OIII lines (at 5007 angstroms), which results in a larger
@@ -26,17 +26,6 @@ class LineConfusion(Noisifier):
     in a negative redshift, which can occur for low redshift galaxies when
     wrong_wavelen < true_wavelen.
 
-    Parameters
-    ----------
-    true_wavelen : positive float
-        The wavelength of the true emission line.
-        Wavelength unit assumed to be the same as wrong_wavelen.
-    wrong_wavelen : positive float
-        The wavelength of the wrong emission line, which is being confused
-        for the correct emission line.
-        Wavelength unit assumed to be the same as true_wavelen.
-    frac_wrong : float between zero and one
-        The fraction of galaxies with confused emission lines.
     """
 
     name = 'LineConfusion'
@@ -108,10 +97,6 @@ class InvRedshiftIncompleteness(Selector):
     p(z) = min(1, z_p/z),
     where z_p is the pivot redshift.
 
-    Parameters
-    ----------
-    pivot_redshift : positive float
-        The redshift at which the incompleteness begins.
     """
 
     name = 'InvRedshiftIncompleteness'

@@ -12,28 +12,6 @@ from rail.utils.path_utils import RAILDIR
 class SpecSelection(Selector):
     """The super class of spectroscopic selections.
 
-    Parameters
-    ----------
-    N_tot : int
-        The total number of down-sampled, spec-selected galaxies. If N_tot is 
-        greater than the number of spec-sepected galaxies, then it will be 
-        ignored.
-    nondetect_val : float
-        The value to be removed for non detects
-    downsample : bool
-        If True, then downsample the pre-selected galaxies to N_tot galaxies.
-    success_rate_dir : string
-        The path to the success rate files
-    percentile_cut: int, default=100
-        If using color-based redshift cut, percentile in redshifts above which 
-        redshifts will be cut from the sample. Default is 100 (no cut).
-    colnames: dict
-        A dictionary that includes necessary columns (magnitudes, colors and 
-        redshift) for selection. For magnitudes, the keys are ugrizy; for 
-        colors, the keys are, for example, gr standing for g-r; for redshift, 
-        the key is 'redshift'.
-    random_seed : int
-        Random seed for reproducibility
     """
 
     name = "SpecSelection"

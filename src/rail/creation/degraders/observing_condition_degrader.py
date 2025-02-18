@@ -19,43 +19,40 @@ class ObsCondition(Noisifier):
     using input survey condition maps. The error is based on the
     LSSTErrorModel from the PhotErr python package.
 
-    Parameters
-    ----------
-    nside: int, optional
-        nside used for the HEALPIX maps.
-    mask: str, optional
-        Path to the mask covering the survey
-        footprint in HEALPIX format. Notice that
-        all negative values will be set to zero.
-    weight: str, optional
-        Path to the weights HEALPIX format, used
-        to assign sample galaxies to pixels. Default
-        is weight="", which uses uniform weighting.
-    tot_nVis_flag: bool, optional
-        If any map for nVisYr are provided, this flag
-        indicates whether the map shows the total number of
-        visits in nYrObs (tot_nVis_flag=True), or the average
-        number of visits per year (tot_nVis_flag=False). The
-        default is set to True.
-    random_seed: int, optional
-        A random seed for reproducibility.
-    map_dict: dict, optional
-        A dictionary that contains the paths to the
-        survey condition maps in HEALPIX format. This dictionary
-        uses the same arguments as LSSTErrorModel (from PhotErr).
-        The following arguments, if supplied, may contain either
-        a single number (as in the case of LSSTErrorModel), or a path:
-        [m5, nVisYr, airmass, gamma, msky, theta, km, tvis, EBV]
-        For the following keys:
-        [m5, nVisYr, gamma, msky, theta, km]
-        numbers/paths for specific bands must be passed.
-        Example:
-        {"m5": {"u": path, ...}, "theta": {"u": path, ...},}
-        Other LSSTErrorModel parameters can also be passed
-        in this dictionary (e.g. a necessary one may be [nYrObs]
-        for the survey condition maps).
-        If any argument is not passed, the default value in
-        PhotErr's LsstErrorModel is adopted.
+    .. code-block:: text
+
+        mask: str, optional
+            Path to the mask covering the survey
+            footprint in HEALPIX format. Notice that
+            all negative values will be set to zero.
+        weight: str, optional
+            Path to the weights HEALPIX format, used
+            to assign sample galaxies to pixels. Default
+            is weight="", which uses uniform weighting.
+            tot_nVis_flag: bool, optional
+            If any map for nVisYr are provided, this flag
+            indicates whether the map shows the total number of
+            visits in nYrObs (tot_nVis_flag=True), or the average
+            number of visits per year (tot_nVis_flag=False). The
+            default is set to True.
+        map_dict: dict, optional
+            A dictionary that contains the paths to the
+            survey condition maps in HEALPIX format. This dictionary
+            uses the same arguments as LSSTErrorModel (from PhotErr).
+            The following arguments, if supplied, may contain either
+            a single number (as in the case of LSSTErrorModel), or a path:
+            [m5, nVisYr, airmass, gamma, msky, theta, km, tvis, EBV]
+            For the following keys:
+            [m5, nVisYr, gamma, msky, theta, km]
+            numbers/paths for specific bands must be passed.
+            Example:
+            {"m5": {"u": path, ...}, "theta": {"u": path, ...},}
+            Other LSSTErrorModel parameters can also be passed
+            in this dictionary (e.g. a necessary one may be [nYrObs]
+            or the survey condition maps).
+            If any argument is not passed, the default value in
+            PhotErr's LsstErrorModel is adopted.
+
 
     """
 

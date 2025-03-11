@@ -389,7 +389,10 @@ class LSSTFluxToMagConverter(RailStage):
             out_data[self.config.mag_name.format(band=band_)] = self._flux_to_mag(data[flux_col_name].values)
             out_data[self.config.mag_err_name.format(band=band_)] = self._flux_err_to_mag_err(data[flux_col_name].values, data[flux_err_col_name].values)
         for key, val in self.config.copy_cols.items():  # pragma: no cover
-            out_data[key] = data[val].values
+            if val == 'objectId':
+                out_data[key] = data.index.values
+            else:
+                out_data[key] = data[val].values
         self.add_data('output', out_data)
 
     def __call__(self, data):

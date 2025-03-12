@@ -371,10 +371,11 @@ class LSSTFluxToMagConverter(RailStage):
     mag_conv = np.log(10)*0.4
 
     inputs = [('input', PqHandle)]
-    outputs = [('output', Hdf5Handle)]
+    outputs = [('output', PqHandle)]
 
     def _flux_to_mag(self, flux_vals):
-        return -2.5*np.log10(flux_vals) + self.config.mag_offset
+        vals = -2.5*np.log10(flux_vals) + self.config.mag_offset
+        return np.where(np.isfinite(vals), vals, np.nan)
 
     def _flux_err_to_mag_err(self, flux_vals, flux_err_vals):
         return flux_err_vals / (flux_vals*self.mag_conv)
@@ -383,16 +384,14 @@ class LSSTFluxToMagConverter(RailStage):
         data = self.get_data('input', allow_missing=True)
         out_data = {}
         const = np.log(10.)*0.4
+
         for band_ in self.config.bands:
             flux_col_name = self.config.flux_name.format(band=band_)
             flux_err_col_name = self.config.flux_err_name.format(band=band_)
             out_data[self.config.mag_name.format(band=band_)] = self._flux_to_mag(data[flux_col_name].values)
             out_data[self.config.mag_err_name.format(band=band_)] = self._flux_err_to_mag_err(data[flux_col_name].values, data[flux_err_col_name].values)
         for key, val in self.config.copy_cols.items():  # pragma: no cover
-            if val == 'objectId':
-                out_data[key] = data.index.values
-            else:
-                out_data[key] = data[val].values
+            out_data[key] = data[val].values
         self.add_data('output', out_data)
 
     def __call__(self, data):

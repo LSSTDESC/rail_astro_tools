@@ -25,10 +25,12 @@ ERROR_MODELS = dict(
     lsst = dict(
         ErrorModel='LSSTErrorModel',
         Module='rail.creation.degraders.photometric_errors',
+        Bands=['u', 'g', 'r', 'i', 'z', 'y'],
     ),
     roman = dict(
         ErrorModel='RomanErrorModel',
         Module='rail.creation.degraders.photometric_errors',
+        Bands=['K', 'F', 'H', 'J', 'Y', 'Z', 'W'],
     ),
     #euclid = dict(
     #    ErrorModel='EuclidErrorModel',
@@ -57,13 +59,18 @@ class ApplyPhotErrorsPipeline(RailPipeline):
         )
 
         previous_stage = self.reddener
+        full_rename_dict = catalog_utils.CatalogConfigBase.active_class().band_name_dict()
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
+            if 'Bands' in val:
+                rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
+            else:
+                rename_dict = full_rename_dict
             the_error_model = error_model_class.make_and_connect(
                 name=f'error_model_{key}',
                 connections=dict(input=previous_stage.io.output),
                 hdf5_groupname='',
-                renameDict=catalog_utils.CatalogConfigBase.active_class().band_name_dict(),
+                renameDict=rename_dict,
             )
             self.add_stage(the_error_model)
             previous_stage = the_error_model

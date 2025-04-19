@@ -27,11 +27,11 @@ ERROR_MODELS = dict(
         Module='rail.creation.degraders.photometric_errors',
         Bands=['u', 'g', 'r', 'i', 'z', 'y'],
     ),
-    roman = dict(
-        ErrorModel='RomanErrorModel',
-        Module='rail.creation.degraders.photometric_errors',
-        Bands=['K', 'F', 'H', 'J', 'Y', 'Z', 'W'],
-    ),
+    #roman = dict(
+    #    ErrorModel='RomanErrorModel',
+    #    Module='rail.creation.degraders.photometric_errors',
+    #    Bands=['F', 'H', 'J', 'Y'],
+    #),
     #euclid = dict(
     #    ErrorModel='EuclidErrorModel',
     #    Module='rail.creation.degraders.photometric_errors',

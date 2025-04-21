@@ -37,7 +37,7 @@ class TruthToObservedPipeline(RailPipeline):
         DS.__class__.allow_overwrite = True
 
         active_catalog_config = catalog_utils.CatalogConfigBase.active_class()
-        band_name_dict = active_catalog_config.band_name_dict()
+        full_rename_dict = active_catalog_config.band_name_dict()
 
         if error_models is None:
             error_models = ERROR_MODELS.copy()
@@ -46,7 +46,7 @@ class TruthToObservedPipeline(RailPipeline):
             selectors = SELECTORS.copy()
 
         config_pars = CommonConfigParams.copy()
-        config_pars['colnames'] = band_name_dict.copy()
+        config_pars['colnames'] = full_rename_dict.copy()
         config_pars['colnames']['redshift'] = active_catalog_config.redshift_col
 
         self.reddener = Reddener.build(
@@ -61,11 +61,16 @@ class TruthToObservedPipeline(RailPipeline):
 
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
+            if 'Bands' in val:
+                rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
+            else:  # pragma: no cover
+                rename_dict = full_rename_dict
+
             the_error_model = error_model_class.make_and_connect(
                 name=f'error_model_{key}',
                 connections=dict(input=previous_stage.io.output),
                 hdf5_groupname='',
-                renameDict=band_name_dict,
+                renameDict=rename_dict,
             )
             self.add_stage(the_error_model)
             previous_stage = the_error_model
@@ -78,12 +83,12 @@ class TruthToObservedPipeline(RailPipeline):
             )
             self.add_stage(dereddener_errors)
             previous_stage = dereddener_errors
-            
+
             for key2, val2 in selectors.items():
                 the_class = ceci.PipelineStage.get_stage(val2['Select'], val2['Module'])
                 the_selector = the_class.make_and_connect(
                     name=f'select_{key}_{key2}',
                     connections=dict(input=previous_stage.io.output),
                     **config_pars,
-                )            
+                )
                 self.add_stage(the_selector)

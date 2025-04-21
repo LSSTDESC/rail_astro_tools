@@ -30,7 +30,7 @@ ERROR_MODELS = dict(
     #roman = dict(
     #    ErrorModel='RomanErrorModel',
     #    Module='rail.creation.degraders.photometric_errors',
-    #    Bands=['F', 'H', 'J', 'Y'],
+    #    Bands=['Y', 'J', 'H', 'F'],
     #),
     #euclid = dict(
     #    ErrorModel='EuclidErrorModel',

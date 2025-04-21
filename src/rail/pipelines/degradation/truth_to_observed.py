@@ -58,7 +58,7 @@ class TruthToObservedPipeline(RailPipeline):
         if blending:
             self.unrec_bl = UnrecBlModel.build()
             previous_stage = self.unrec_bl
-            
+
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
             if 'Bands' in val:
@@ -83,12 +83,12 @@ class TruthToObservedPipeline(RailPipeline):
             )
             self.add_stage(dereddener_errors)
             previous_stage = dereddener_errors
-            
+
             for key2, val2 in selectors.items():
                 the_class = ceci.PipelineStage.get_stage(val2['Select'], val2['Module'])
                 the_selector = the_class.make_and_connect(
                     name=f'select_{key}_{key2}',
                     connections=dict(input=previous_stage.io.output),
                     **config_pars,
-                )            
+                )
                 self.add_stage(the_selector)

@@ -12,8 +12,23 @@ from photerr import LsstErrorModel as peLsstErrorModel
 from photerr import LsstErrorParams as peLsstErrorParams
 from photerr import RomanErrorModel as peRomanErrorModel
 from photerr import RomanErrorParams as peRomanErrorParams
+
+from photerr import RomanWideErrorModel as peRomanWideErrorModel
+from photerr import RomanWideErrorParams as peRomanWideErrorParams
+from photerr import RomanMediumErrorModel as peRomanMediumErrorModel
+from photerr import RomanMediumErrorParams as peRomanMediumErrorParams
+from photerr import RomanDeepErrorModel as peRomanDeepErrorModel
+from photerr import RomanDeepErrorParams as peRomanDeepErrorParams
+from photerr import RomanUltraDeepErrorModel as peRomanUltraDeepErrorModel
+from photerr import RomanUltraDeepErrorParams as peRomanUltraDeepErrorParams
+
 from photerr import EuclidErrorModel as peEuclidErrorModel
 from photerr import EuclidErrorParams as peEuclidErrorParams
+from photerr import EuclidWideErrorModel as peEuclidWideErrorModel
+from photerr import EuclidWideErrorParams as peEuclidWideErrorParams
+from photerr import EuclidDeepErrorModel as peEuclidDeepErrorModel
+from photerr import EuclidDeepErrorParams as peEuclidDeepErrorParams
+
 from rail.creation.noisifier import Noisifier
 
 class PhotoErrorModel(Noisifier):
@@ -132,12 +147,79 @@ class RomanErrorModel(PhotoErrorModel):
         self.reload_pars(args)
         self.peNoiseModel = peRomanErrorModel
 
-                
+
+class RomanWideErrorModel(PhotoErrorModel):
+    
+    """
+    The Roman WideError model, defined by peRomanWideErrorParams and peRomanWideErrorModel
+    """
+    
+    name = "RomanWideErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peRomanWideErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peRomanWideErrorModel
+
+        
+class RomanMediumErrorModel(PhotoErrorModel):
+    
+    """
+    The Roman Medium Error model, defined by peRomanMediumErrorParams and peRomanMediumErrorModel
+    """
+    
+    name = "RomanMediumErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peRomanMediumErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peRomanMediumErrorModel
+
+        
+class RomanDeepErrorModel(PhotoErrorModel):
+    
+    """
+    The Roman Deep Error model, defined by peRomanDeepErrorParams and peRomanDeepErrorModel
+    """
+    
+    name = "RomanDeepErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peRomanDeepErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peRomanDeepErrorModel
+
+
+class RomanUltraDeepErrorModel(PhotoErrorModel):
+    
+    """
+    The Roman UltraDeep Error model, defined by peRomanUltraDeepErrorParams and peRomanUltraDeepErrorModel
+    """
+    
+    name = "RomanUltraDeepErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peRomanUltraDeepErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peRomanUltraDeepErrorModel
+
         
 class EuclidErrorModel(PhotoErrorModel):
     
     """
-    The Roman Error model, defined by peRomanErrorParams and peRomanErrorModel
+    The Euclid Error model, defined by peEuclidErrorParams and peEuclidErrorModel
     """
     
     name = "EuclidErrorModel"
@@ -149,3 +231,39 @@ class EuclidErrorModel(PhotoErrorModel):
         self.set_params(peEuclidErrorParams)    
         self.reload_pars(args)
         self.peNoiseModel = peEuclidErrorModel
+
+
+class EuclidWideErrorModel(PhotoErrorModel):
+    
+    """
+    The Euclid Wide Error model, defined by peEuclidWideErrorParams and peEuclidWideErrorModel
+    """
+    
+    name = "EuclidWideErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peEuclidWideErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peEuclidWideErrorModel
+
+
+class EuclidDeepErrorModel(PhotoErrorModel):
+    
+    """
+    The Euclid Deep Error model, defined by peEuclidDeepErrorParams and peEuclidDeepErrorModel
+    """
+    
+    name = "EuclidDeepErrorModel"
+    
+    def __init__(self, args, **kwargs):
+
+        super().__init__(args, **kwargs)
+        
+        self.set_params(peEuclidDeepErrorParams)    
+        self.reload_pars(args)
+        self.peNoiseModel = peEuclidDeepErrorModel
+
+        

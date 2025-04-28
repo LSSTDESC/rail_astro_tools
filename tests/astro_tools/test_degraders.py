@@ -13,7 +13,7 @@ from rail.creation.degraders.spectroscopic_degraders import InvRedshiftIncomplet
 from rail.creation.degraders.spectroscopic_selections import *
 from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
-from rail.creation.degraders.photometric_errors import EuclidErrorModel, LSSTErrorModel
+from rail.creation.degraders.photometric_errors import *
 from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 
 
@@ -414,9 +414,23 @@ def test_LSSTErrorModel_returns_correct_columns(data):
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
 
-def test_EucliErrorModel(data):
+@pytest.mark.parametrize(
+    "error_model_class",
+    [
+        (RomanErrorModel),
+        (RomanWideErrorModel),
+        (RomanMediumErrorModel),
+        (RomanDeepErrorModel),
+        (RomanUltraDeepErrorModel),
+        (EuclidErrorModel),
+        (EuclidWideErrorModel),
+        (EuclidDeepErrorModel),
+    ]
+)
+def test_error_models(data, error_model_class):
     # Setup the stage
-    degrader = EuclidErrorModel.make_stage()
+    degrader = error_model_class.make_stage()
+    assert degrader
 
 
 def test_BLModel(data_for_bl):

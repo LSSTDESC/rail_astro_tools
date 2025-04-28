@@ -22,7 +22,7 @@ dependencies = [
     "pandas>=2.2.2",
     "astropy",
     "healpy",
-    "photerr",
+    "photerr>=1.4.0",
     "dustmaps",
     "pz-hyperbolic-temp",
     "lsstdesc-gcr-catalogs",

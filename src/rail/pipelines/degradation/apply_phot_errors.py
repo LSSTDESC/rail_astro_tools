@@ -56,8 +56,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
             copy_all_cols=True,
-        )
-
+        )        
         previous_stage = self.reddener
         full_rename_dict = catalog_utils.CatalogConfigBase.active_class().band_name_dict()
         for key, val in error_models.items():
@@ -71,6 +70,9 @@ class ApplyPhotErrorsPipeline(RailPipeline):
                 connections=dict(input=previous_stage.io.output),
                 hdf5_groupname='',
                 renameDict=rename_dict,
+                minorCol='minor',
+                majorCol='major',
+                extendedType='gaap',
             )
             self.add_stage(the_error_model)
             previous_stage = the_error_model

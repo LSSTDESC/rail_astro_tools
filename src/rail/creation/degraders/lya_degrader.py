@@ -9,6 +9,7 @@ from rail.creation.noisifier import Noisifier
 from rail.core.common_params import SHARED_PARAMS
 from rail.utils.path_utils import RAILDIR
 from ceci.config import StageParameter as Param
+import os
 
 class IGMExtinctionModel(Noisifier):
     """

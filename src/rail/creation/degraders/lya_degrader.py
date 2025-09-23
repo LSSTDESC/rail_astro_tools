@@ -392,7 +392,7 @@ class IGMExtinctionModel(Noisifier):
         outData = data.copy()
         for i in range(Nobj):
             # currently this is not efficient
-            T_igm = self._igm_transmission(wavelen, data[self.config.redshift_col][i])
+            T_igm = self._igm_transmission(self.wavelen, data[self.config.redshift_col][i])
             
             if self.config.compute_uv_slope == False:
                 beta_uv = self.beta_uv_init

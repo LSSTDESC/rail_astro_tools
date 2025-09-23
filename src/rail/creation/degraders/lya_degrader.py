@@ -12,9 +12,18 @@ from ceci.config import StageParameter as Param
 import os
 
 class IGMExtinctionModel(Noisifier):
-    """
-    Degrader that simulates IGM extinction.
-    
+    """Degrader that simulates IGM extinction.
+
+    Note that the extinction is only applied to u and g bands, 
+    assuming that the maximum redshift of the same is < ~3.
+
+    Note also that the code assumes the first two input 
+    bands are always u and g. These bands are also needed to 
+    compute the UV slope. 
+
+    An initial UV slope of -2 is assumed. There is option 
+    to update the UV slope through one iteration, based on 
+    the u and g fluxes.
     """
 
     name = 'IGMExtinctionModel'
@@ -27,7 +36,7 @@ class IGMExtinctionModel(Noisifier):
         filter_list=SHARED_PARAMS,
         bands=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
-        compute_uv_slope=Param(bool, True, msg="whether to compute the uv slope"
+        compute_uv_slope=Param(bool, True, msg="whether to compute the UV slope"
                                                 "If not, the initial value of -2 will be used"),
     )
 
@@ -362,6 +371,13 @@ class IGMExtinctionModel(Noisifier):
         return np.sum(self.wavelen**(beta_uv+2) * self.filters[band] * self.dwavelen) / np.sum( self.wavelen**(beta_uv+1) * self.filters[band] * self.dwavelen)
     
     def _initNoiseModel(self):
+        """ Initialize the noise model
+
+        Notes
+        -----
+        Load in the filters, set up wavelength grids 
+        and compute mean u and g wavelength if needed
+        """
 
         filter_list = self.config.filter_list
         filters = {}
@@ -383,9 +399,16 @@ class IGMExtinctionModel(Noisifier):
         
     
     def _addNoise(self):
-        # Note: we assume the order of band and filter_list are 
-        # corresponding to each other, and the first two bands 
-        # must be u and g!
+        """ Run method
+
+        Applies line confusion
+
+        Notes
+        -----
+        Get the input data from the data store under this stages 'input' tag
+        Compute Delta_m due to the IGM extinction in u and g bands
+        Puts the data into the data store under this stages 'output' tag
+        """
         data = self.get_data("input")
         Nobj = len(data[self.config.redshift_col])
 

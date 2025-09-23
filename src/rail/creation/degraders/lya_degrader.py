@@ -356,10 +356,10 @@ class IGMExtinctionModel(Noisifier):
     def _get_uv_slope(self, u, g, mean_wavelen_u, mean_wavelen_g):
         return (u - g)/(-2.5*np.log10(mean_wavelen_u/mean_wavelen_g)) - 2 
 
-    def _compute_mean_wavelen_filter(self, wavelen, dwavelen, filterf, beta_uv=None):
+    def _compute_mean_wavelen_filter(self, band, beta_uv=None):
         if beta_uv == None:
             beta_uv = self.beta_uv_init
-        return np.sum(wavelen**(beta_uv+2) * filterf * dwavelen) / np.sum( wavelen**(beta_uv+1) * filterf * dwavelen)
+        return np.sum(self.wavelen**(beta_uv+2) * self.filters[band] * self.dwavelen) / np.sum( self.wavelen**(beta_uv+1) * self.filters[band] * self.dwavelen)
     
     def _initNoiseModel(self):
 
@@ -375,8 +375,8 @@ class IGMExtinctionModel(Noisifier):
 
         if self.config.compute_uv_slope == True:
             # these are computed using initial guess of beta_uv=-2
-            self.mean_wavelen_u = self._compute_mean_wavelen_filter(filters[self.config.bands[0]])
-            self.mean_wavelen_g = self._compute_mean_wavelen_filter(filters[self.config.bands[1]])
+            self.mean_wavelen_u = self._compute_mean_wavelen_filter(self.config.bands[0])
+            self.mean_wavelen_g = self._compute_mean_wavelen_filter(self.config.bands[1])
         else:
             self.mean_wavelen_u = None
             self.mean_wavelen_g = None   

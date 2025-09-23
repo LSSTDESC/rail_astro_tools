@@ -15,6 +15,7 @@ from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
 from rail.creation.degraders.photometric_errors import *
 from rail.creation.degraders.unrec_bl_model import UnrecBlModel
+from rail.creation.degraders.lya_degrader import IGMExtinctionModel
 
 
 @pytest.fixture
@@ -459,3 +460,10 @@ def test_BLModel(data_for_bl):
 
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
     os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))
+
+def test_lya_degrader(data):
+    degrader = IGMExtinctionModel.make_stage()
+    outputs = degrader(data).data
+    # check data has the right shape:
+    assert output.shape[0] < data.data.shape[0]
+    

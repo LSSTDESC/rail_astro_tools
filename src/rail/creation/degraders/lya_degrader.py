@@ -6,6 +6,7 @@ Implementation of the IGM model from Inoue 2014 (arXiv:1402.0677).
 import numpy as np
 from rail.creation.noisifier import Noisifier
 from rail.core.common_params import SHARED_PARAMS
+from rail.utils.path_utils import RAILDIR
 
 class IGMExtinctionModel(Noisifier):
     """
@@ -361,6 +362,7 @@ class IGMExtinctionModel(Noisifier):
         # Note: we assume the order of band and filter_list are 
         # corresponding to each other, and the first two bands 
         # must be u and g!
+        data = self.get_data("input")
         
         data_path = self.config.data_path
         filter_list = self.config.filter_list
@@ -374,16 +376,19 @@ class IGMExtinctionModel(Noisifier):
         
         Nobj = len(data[self.config.redshift_col])
 
-        outData = data
+        if self.config.compute_uv_slope == True:
+            # these are computed using initial guess of beta_uv=-2
+            mean_wavelen_u = _compute_mean_wavelen_filter(filters[self.config.bands[0]])
+            mean_wavelen_g = _compute_mean_wavelen_filter(filters[self.config.bands[1]])
+        
+        outData = data.copy()
         for i in range(Nobj):
-            
+            # currently this is not efficient
             T_igm = _igm_transmission(wavelen, data[self.config.redshift_col][i])
             
             if self.config.compute_uv_slope == False:
                 beta_uv = self.beta_uv_init
             else:
-                mean_wavelen_u = _compute_mean_wavelen_filter(filters[self.config.bands[0]])
-                mean_wavelen_g = _compute_mean_wavelen_filter(filters[self.config.bands[1]])
                 beta_uv = _get_uv_slope(data[self.config.bands[0]][i],
                                        data[self.config.bands[1]][i],
                                         mean_wavelen_u, mean_wavelen_g)
@@ -396,6 +401,6 @@ class IGMExtinctionModel(Noisifier):
                 R_m = wavelen**(beta_uv + 1)*R_m / R_m_norm
                 flux_ratio_igm = np.sum(T_igm * R_m * dwavelen)
                 delta_m= -2.5*np.log10(flux_ratio_igm)
-                outData[band] = data[band] - delta_m
+                outData[band][i] = data[band][i] - delta_m
 
         self.add_data('output', outData)

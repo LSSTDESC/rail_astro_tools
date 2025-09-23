@@ -366,7 +366,7 @@ class IGMExtinctionModel(Noisifier):
         filter_list = self.config.filter_list
         filters = {}
         for i, f in enumerate(filter_list[:2]):
-            fin = np.loadtxt(self.data_path + f + ".res")
+            fin = np.loadtxt(self.data_path + "/FILTER/" + f + ".res")
             filters[self.config.bands[i]]=fin[:,1]
 
         self.filters = filters
@@ -392,12 +392,12 @@ class IGMExtinctionModel(Noisifier):
         outData = data.copy()
         for i in range(Nobj):
             # currently this is not efficient
-            T_igm = _igm_transmission(wavelen, data[self.config.redshift_col][i])
+            T_igm = self._igm_transmission(wavelen, data[self.config.redshift_col][i])
             
             if self.config.compute_uv_slope == False:
                 beta_uv = self.beta_uv_init
             else:
-                beta_uv = _get_uv_slope(data[self.config.bands[0]][i],
+                beta_uv = self._get_uv_slope(data[self.config.bands[0]][i],
                                        data[self.config.bands[1]][i],
                                         self.mean_wavelen_u, self.mean_wavelen_g)
 

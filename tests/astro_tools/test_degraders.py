@@ -462,7 +462,10 @@ def test_BLModel(data_for_bl):
     os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))
 
 def test_lya_degrader(data):
-    degrader = IGMExtinctionModel.make_stage()
+    degrader = IGMExtinctionModel.make_stage(
+        bands = ["u", "g", "r", "i", "z", "y"],
+        redshift_col='redshift',
+    )
     outputs = degrader(data).data
     # check data has the right shape:
     assert output.shape[0] < data.data.shape[0]

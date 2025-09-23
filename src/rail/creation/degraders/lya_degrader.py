@@ -1,12 +1,14 @@
 """
 Lyman-alpha degrader due to IGM, following Crenshaw+ 2025 (https://arxiv.org/pdf/2503.06016).
 Implementation of the IGM model from Inoue 2014 (arXiv:1402.0677).
+Source code from: https://github.com/jfcrenshaw/lbg_tools/blob/main/src/lbg_tools/_igm_inoue.py
 """
 
 import numpy as np
 from rail.creation.noisifier import Noisifier
 from rail.core.common_params import SHARED_PARAMS
 from rail.utils.path_utils import RAILDIR
+from ceci.config import StageParameter as Param
 
 class IGMExtinctionModel(Noisifier):
     """

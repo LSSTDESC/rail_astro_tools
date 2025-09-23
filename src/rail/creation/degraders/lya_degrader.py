@@ -361,11 +361,7 @@ class IGMExtinctionModel(Noisifier):
             beta_uv = self.beta_uv_init
         return np.sum(wavelen**(beta_uv+2) * filterf * dwavelen) / np.sum( wavelen**(beta_uv+1) * filterf * dwavelen)
     
-    def _addNoise(self):
-        # Note: we assume the order of band and filter_list are 
-        # corresponding to each other, and the first two bands 
-        # must be u and g!
-        data = self.get_data("input")
+    def _initNoiseModel(self):
         
         data_path = self.config.data_path
         filter_list = self.config.filter_list
@@ -373,17 +369,27 @@ class IGMExtinctionModel(Noisifier):
         for i, f in enumerate(filter_list[:2]):
             fin = np.loadtxt(data_path + f + ".res")
             filters[self.config.bands[i]]=fin[:,1]
-        
-        wavelen = fin[:,0]
-        dwavelen = wavelen[1]- wavelen[0] 
-        
-        Nobj = len(data[self.config.redshift_col])
+
+        self.filters = filters
+        self.wavelen = fin[:,0]
+        self.dwavelen = wavelen[1]- wavelen[0] 
 
         if self.config.compute_uv_slope == True:
             # these are computed using initial guess of beta_uv=-2
-            mean_wavelen_u = _compute_mean_wavelen_filter(filters[self.config.bands[0]])
-            mean_wavelen_g = _compute_mean_wavelen_filter(filters[self.config.bands[1]])
+            self.mean_wavelen_u = _compute_mean_wavelen_filter(filters[self.config.bands[0]])
+            self.mean_wavelen_g = _compute_mean_wavelen_filter(filters[self.config.bands[1]])
+        else:
+            self.mean_wavelen_u = None
+            self.mean_wavelen_g = None   
         
+    
+    def _addNoise(self):
+        # Note: we assume the order of band and filter_list are 
+        # corresponding to each other, and the first two bands 
+        # must be u and g!
+        data = self.get_data("input")
+        Nobj = len(data[self.config.redshift_col])
+
         outData = data.copy()
         for i in range(Nobj):
             # currently this is not efficient
@@ -394,15 +400,15 @@ class IGMExtinctionModel(Noisifier):
             else:
                 beta_uv = _get_uv_slope(data[self.config.bands[0]][i],
                                        data[self.config.bands[1]][i],
-                                        mean_wavelen_u, mean_wavelen_g)
+                                        self.mean_wavelen_u, self.mean_wavelen_g)
 
             for band in self.config.bands[:2]:
                 # compute this for u and g band only, as
                 # other bands have negligible impact
-                R_m = filters[band]
-                R_m_norm = np.sum(wavelen**(beta_uv + 1) * R_m * dwavelen)
-                R_m = wavelen**(beta_uv + 1)*R_m / R_m_norm
-                flux_ratio_igm = np.sum(T_igm * R_m * dwavelen)
+                R_m = self.filters[band]
+                R_m_norm = np.sum(self.wavelen**(beta_uv + 1) * R_m * self.dwavelen)
+                R_m = self.wavelen**(beta_uv + 1)*R_m / R_m_norm
+                flux_ratio_igm = np.sum(T_igm * R_m * self.dwavelen)
                 delta_m= -2.5*np.log10(flux_ratio_igm)
                 outData[band][i] = data[band][i] - delta_m
 

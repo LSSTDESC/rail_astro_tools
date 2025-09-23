@@ -461,10 +461,19 @@ def test_BLModel(data_for_bl):
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
     os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))
 
-def test_lya_degrader(data):
+
+@pytest.mark.parametrize(
+    "compute_uv_slope",
+    [
+        (True),
+        (False),
+    ],
+)
+def test_lya_degrader(data, compute_uv_slope):
     degrader = IGMExtinctionModel.make_stage(
         bands = ["u", "g", "r", "i", "z", "y"],
         redshift_col='redshift',
+        compute_uv_slope=compute_uv_slope,
     )
     outputs = degrader(data).data
     # check data has the right shape:

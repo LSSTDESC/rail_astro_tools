@@ -19,14 +19,14 @@ class IGMExtinctionModel(Noisifier):
     name = 'IGMExtinctionModel'
     config_options = Noisifier.config_options.copy()
     config_options.update(
-        data_path=Param(str, required=True, msg="data_path (str): file path to the "
+        data_path=Param(str, "None", required=True, msg="data_path (str): file path to the "
                                           "FILTER directories.  If left to "
                                           "default `None` it will use the install "
                                           "directory for rail + rail/examples_data/estimation_data/data"),  
         filter_list=SHARED_PARAMS,
         bands=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
-        compute_uv_slope=Param(bool, required=True, msg="whether to compute the uv slope"
+        compute_uv_slope=Param(bool, False, required=True, msg="whether to compute the uv slope"
                                                        "If not, the initial value of -2 will be used"),
     )
 

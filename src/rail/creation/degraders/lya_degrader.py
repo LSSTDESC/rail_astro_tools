@@ -362,12 +362,11 @@ class IGMExtinctionModel(Noisifier):
         return np.sum(wavelen**(beta_uv+2) * filterf * dwavelen) / np.sum( wavelen**(beta_uv+1) * filterf * dwavelen)
     
     def _initNoiseModel(self):
-        
-        data_path = self.config.data_path
+
         filter_list = self.config.filter_list
         filters = {}
         for i, f in enumerate(filter_list[:2]):
-            fin = np.loadtxt(data_path + f + ".res")
+            fin = np.loadtxt(self.data_path + f + ".res")
             filters[self.config.bands[i]]=fin[:,1]
 
         self.filters = filters

@@ -350,7 +350,7 @@ class IGMExtinctionModel(Noisifier):
         np.ndarray
            IGM transmission T(wavelen, z)
         """
-        tau = _igm_tau(wavelen,z)
+        tau = self._igm_tau(wavelen,z)
         return np.exp(-tau)
 
     def _get_uv_slope(self, u, g, mean_wavelen_u, mean_wavelen_g):

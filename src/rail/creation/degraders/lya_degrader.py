@@ -375,8 +375,8 @@ class IGMExtinctionModel(Noisifier):
 
         if self.config.compute_uv_slope == True:
             # these are computed using initial guess of beta_uv=-2
-            self.mean_wavelen_u = _compute_mean_wavelen_filter(filters[self.config.bands[0]])
-            self.mean_wavelen_g = _compute_mean_wavelen_filter(filters[self.config.bands[1]])
+            self.mean_wavelen_u = self._compute_mean_wavelen_filter(filters[self.config.bands[0]])
+            self.mean_wavelen_g = self._compute_mean_wavelen_filter(filters[self.config.bands[1]])
         else:
             self.mean_wavelen_u = None
             self.mean_wavelen_g = None   

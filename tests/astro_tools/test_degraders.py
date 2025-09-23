@@ -468,5 +468,5 @@ def test_lya_degrader(data):
     )
     outputs = degrader(data).data
     # check data has the right shape:
-    assert outputs.shape[0] < data.data.shape[0]
+    assert outputs.shape[0] == data.data.shape[0]
     

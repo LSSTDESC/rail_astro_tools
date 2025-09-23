@@ -329,10 +329,10 @@ class IGMExtinctionModel(Noisifier):
     
         # Optical depth of IGM due to Lyman transitions
         return (
-            _tls_laf(wavelen, z)
-            + _tls_dla(wavelen, z)
-            + _tlc_laf(wavelen, z)
-            + _tlc_dla(wavelen, z)
+            self._tls_laf(wavelen, z)
+            + self._tls_dla(wavelen, z)
+            + self._tlc_laf(wavelen, z)
+            + self._tlc_dla(wavelen, z)
         )
 
     def _igm_transmission(self, wavelen: float | np.ndarray, z: float) -> np.ndarray:

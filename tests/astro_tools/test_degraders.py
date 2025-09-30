@@ -463,7 +463,7 @@ def test_BLModel(data_for_bl):
 
 
 @pytest.mark.parametrize(
-    "compute_uv_slope", "optical_depth_interpolator",
+    "compute_uv_slope, optical_depth_interpolator",
     [
         (True, True),
         (False,True),

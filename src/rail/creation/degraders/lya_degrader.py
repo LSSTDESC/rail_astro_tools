@@ -450,7 +450,7 @@ class IGMExtinctionModel(Noisifier):
             z = np.linspace(self.config.redshift_grid[0],self.config.redshift_grid[1],self.config.redshift_grid[2])
             Tm = np.zeros((len(self.wavelen), len(z)))
             for ii in range(len(z)):
-                Tm[:,ii] = self._igm_transmission(self.wavelen,z[ii]))
+                Tm[:,ii] = self._igm_transmission(self.wavelen,z[ii])
             
             Tm_funct = RegularGridInterpolator((self.wavelen, z), Tm, bounds_error=False, fill_value=0)
             wavelen_grid, redshift_grid = np.meshgrid(self.wavelen, data[self.config.redshift_col], indexing='ij')

@@ -468,7 +468,7 @@ def test_BLModel(data_for_bl):
         (True, True),
         (False,True),
         (True, False),
-        (False,False),s
+        (False,False),
     ],
 )
 def test_lya_degrader(data, compute_uv_slope):

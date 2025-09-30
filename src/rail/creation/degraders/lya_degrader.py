@@ -459,8 +459,8 @@ class IGMExtinctionModel(Noisifier):
             if self.config.compute_uv_slope == False:
                 beta_uv = self.beta_uv_init*np.ones(Nobj)
             else:
-                beta_uv = self._get_uv_slope(data[self.config.bands[0]].value,
-                                             data[self.config.bands[1]].value,
+                beta_uv = self._get_uv_slope(data[self.config.bands[0]].to_numpy(),
+                                             data[self.config.bands[1]].to_numpy(),
                                              self.mean_wavelen_u, self.mean_wavelen_g)
                 
             for band in self.config.bands[:2]:

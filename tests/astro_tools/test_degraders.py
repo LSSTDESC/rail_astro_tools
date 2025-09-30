@@ -471,11 +471,12 @@ def test_BLModel(data_for_bl):
         (False,False),
     ],
 )
-def test_lya_degrader(data, compute_uv_slope):
+def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
     degrader = IGMExtinctionModel.make_stage(
         bands = ["u", "g", "r", "i", "z", "y"],
         redshift_col='redshift',
         compute_uv_slope=compute_uv_slope,
+        optical_depth_interpolator=optical_depth_interpolator,
     )
     outputs = degrader(data).data
     # check data has the right shape:

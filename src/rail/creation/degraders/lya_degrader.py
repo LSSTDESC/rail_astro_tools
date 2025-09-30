@@ -4,12 +4,13 @@ Implementation of the IGM model from Inoue 2014 (arXiv:1402.0677).
 Source code from: https://github.com/jfcrenshaw/lbg_tools/blob/main/src/lbg_tools/_igm_inoue.py
 """
 
+import os
 import numpy as np
 from rail.creation.noisifier import Noisifier
 from rail.core.common_params import SHARED_PARAMS
 from rail.utils.path_utils import RAILDIR
 from ceci.config import StageParameter as Param
-import os
+from scipy.interpolate import RegularGridInterpolator
 
 class IGMExtinctionModel(Noisifier):
     """Degrader that simulates IGM extinction.
@@ -38,6 +39,13 @@ class IGMExtinctionModel(Noisifier):
         redshift_col=SHARED_PARAMS,
         compute_uv_slope=Param(bool, True, msg="whether to compute the UV slope"
                                                 "If not, the initial value of -2 will be used"),
+        optical_depth_interpolator=Param(bool, True, msg="whether to precompute optical depth as a function"
+                                                "of wavelength and redshift, and interpolate the grid."
+                                                "Notice that if False, the computation loops over all"
+                                                "objects, hence can take a very long time!"),
+        redshift_grid=Param(list, [1.5,4,100], msg="the redshift grid to interpolate on, enter a list containing:"
+                                                "z_min, z_max, number_of_grid. The default values should have"
+                                                "a precision that suffice most purpose"),
     )
 
     def __init__(self, args, **kwargs):
@@ -413,25 +421,54 @@ class IGMExtinctionModel(Noisifier):
         Nobj = len(data[self.config.redshift_col])
 
         outData = data.copy()
-        for i in range(Nobj):
-            # currently this is not efficient
-            T_igm = self._igm_transmission(self.wavelen, data[self.config.redshift_col][i])
+
+        if self.config.optical_depth_interpolator == False:
+            # precise computation
+            for i in range(Nobj):
+                # currently this is not efficient
+                T_igm = self._igm_transmission(self.wavelen, data[self.config.redshift_col][i])
+                
+                if self.config.compute_uv_slope == False:
+                    beta_uv = self.beta_uv_init
+                else:
+                    beta_uv = self._get_uv_slope(data[self.config.bands[0]][i],
+                                           data[self.config.bands[1]][i],
+                                            self.mean_wavelen_u, self.mean_wavelen_g)
+    
+                for band in self.config.bands[:2]:
+                    # compute this for u and g band only, as
+                    # other bands have negligible impact
+                    R_m = self.filters[band]
+                    R_m_tilde_norm = np.sum(self.wavelen**(beta_uv + 1) * R_m * self.dwavelen)
+                    R_m_tilde = self.wavelen**(beta_uv + 1)*R_m / R_m_tilde_norm
+                    flux_ratio_igm = np.sum(T_igm * R_m_tilde * self.dwavelen)
+                    delta_m= -2.5*np.log10(flux_ratio_igm)
+                    outData[band][i] = data[band][i] - delta_m
+        
+        elif self.config.optical_depth_interpolator == True:
+            # build the interpolation grid
+            z = np.linspace(self.config.redshift_grid[0],self.config.redshift_grid[1],self.config.redshift_grid[2])
+            Tm = np.zeros((len(self.wavelen), len(z)))
+            for ii in range(len(z)):
+                Tm[:,ii] = self._igm_transmission(self.wavelen,z[ii]))
+            
+            Tm_funct = RegularGridInterpolator((self.wavelen, z), Tm, bounds_error=False, fill_value=0)
+            wavelen_grid, redshift_grid = np.meshgrid(self.wavelen, data[self.config.redshift_col], indexing='ij')
+            T_interp = Tm_funct((wavelen_grid, redshift_grid))
             
             if self.config.compute_uv_slope == False:
-                beta_uv = self.beta_uv_init
+                beta_uv = self.beta_uv_init*np.ones(Nobj)
             else:
-                beta_uv = self._get_uv_slope(data[self.config.bands[0]][i],
-                                       data[self.config.bands[1]][i],
-                                        self.mean_wavelen_u, self.mean_wavelen_g)
-
+                beta_uv = self._get_uv_slope(data[self.config.bands[0]],
+                                             data[self.config.bands[1]],
+                                             self.mean_wavelen_u, self.mean_wavelen_g)
+                
             for band in self.config.bands[:2]:
-                # compute this for u and g band only, as
-                # other bands have negligible impact
                 R_m = self.filters[band]
-                R_m_norm = np.sum(self.wavelen**(beta_uv + 1) * R_m * self.dwavelen)
-                R_m = self.wavelen**(beta_uv + 1)*R_m / R_m_norm
-                flux_ratio_igm = np.sum(T_igm * R_m * self.dwavelen)
+                R_m_tilde_norm = np.sum(self.wavelen[:,None]**(beta_uv[None,:]+1) * R_m[:,None] * self.dwavelen, axis=0)
+                R_m_tilde = self.wavelen[:,None]**(beta_uv[None,:]+1) * R_m[:,None]/R_m_tilde_norm
+                flux_ratio_igm = np.sum(T_interp * R_m_tilde * self.dwavelen, axis=0)
                 delta_m= -2.5*np.log10(flux_ratio_igm)
-                outData[band][i] = data[band][i] - delta_m
+                outData[band] = data[band] - delta_m
 
         self.add_data('output', outData)

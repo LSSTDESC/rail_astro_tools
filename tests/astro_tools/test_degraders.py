@@ -463,10 +463,12 @@ def test_BLModel(data_for_bl):
 
 
 @pytest.mark.parametrize(
-    "compute_uv_slope",
+    "compute_uv_slope", "optical_depth_interpolator"
     [
-        (True),
-        (False),
+        (True, True),
+        (False,True),
+        (True, False),
+        (False,False),s
     ],
 )
 def test_lya_degrader(data, compute_uv_slope):

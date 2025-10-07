@@ -481,4 +481,7 @@ def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
     outputs = degrader(data).data
     # check data has the right shape:
     assert outputs.shape[0] == data.data.shape[0]
+    # check output u band mag is >= input u-band mag:
+    assert ((outputs["u"] - data.data["u"])>=0).all()
+    
     

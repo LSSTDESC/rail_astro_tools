@@ -409,7 +409,7 @@ class IGMExtinctionModel(Noisifier):
     def _addNoise(self):
         """ Run method
 
-        Applies line confusion
+        Applies IGM extinction in u and g bands.
 
         Notes
         -----
@@ -443,7 +443,7 @@ class IGMExtinctionModel(Noisifier):
                     R_m_tilde = self.wavelen**(beta_uv + 1)*R_m / R_m_tilde_norm
                     flux_ratio_igm = np.sum(T_igm * R_m_tilde * self.dwavelen)
                     delta_m= -2.5*np.log10(flux_ratio_igm)
-                    outData[band][i] = data[band][i] - delta_m
+                    outData[band][i] = data[band][i] + delta_m
         
         elif self.config.optical_depth_interpolator == True:
             # build the interpolation grid
@@ -469,6 +469,6 @@ class IGMExtinctionModel(Noisifier):
                 R_m_tilde = self.wavelen[:,None]**(beta_uv[None,:]+1) * R_m[:,None]/R_m_tilde_norm
                 flux_ratio_igm = np.sum(T_interp * R_m_tilde * self.dwavelen, axis=0)
                 delta_m= -2.5*np.log10(flux_ratio_igm)
-                outData[band] = data[band] - delta_m
+                outData[band] = data[band] + delta_m
 
         self.add_data('output', outData)

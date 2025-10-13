@@ -15,6 +15,7 @@ from rail.creation.degraders.observing_condition_degrader import ObsCondition
 from rail.creation.degraders.grid_selection import GridSelection
 from rail.creation.degraders.photometric_errors import *
 from rail.creation.degraders.unrec_bl_model import UnrecBlModel
+from rail.creation.degraders.lya_degrader import IGMExtinctionModel
 
 
 @pytest.fixture
@@ -459,3 +460,28 @@ def test_BLModel(data_for_bl):
 
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
     os.remove(degrader.get_output(degrader.get_aliased_tag("compInd"), final_name=True))
+
+
+@pytest.mark.parametrize(
+    "compute_uv_slope, optical_depth_interpolator",
+    [
+        (True, True),
+        (False,True),
+        (True, False),
+        (False,False),
+    ],
+)
+def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
+    degrader = IGMExtinctionModel.make_stage(
+        bands = ["u", "g", "r", "i", "z", "y"],
+        redshift_col='redshift',
+        compute_uv_slope=compute_uv_slope,
+        optical_depth_interpolator=optical_depth_interpolator,
+    )
+    outputs = degrader(data).data
+    # check data has the right shape:
+    assert outputs.shape[0] == data.data.shape[0]
+    # check output u band mag is >= input u-band mag:
+    assert ((outputs["u"] - data.data["u"])>=0).all()
+    
+    

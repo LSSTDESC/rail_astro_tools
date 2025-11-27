@@ -30,13 +30,20 @@ class TruthToObservedPipeline(RailPipeline):
 
     default_input_dict = dict(input='dummy.in')
 
-    def __init__(self, error_models=None, selectors=None, blending=False):
+    def __init__(
+        self,
+        error_models: dict|None=None,
+        selectors: dict|None=None,
+        *,
+        blending: bool=False,
+        parallel: bool=False,
+    ):
         RailPipeline.__init__(self)
 
         DS = RailStage.data_store
         DS.__class__.allow_overwrite = True
 
-        active_catalog_config = catalog_utils.CatalogConfigBase.active_class()
+        active_catalog_config = catalog_utils.get_active_tag()
         full_rename_dict = active_catalog_config.band_name_dict()
 
         if error_models is None:
@@ -47,7 +54,7 @@ class TruthToObservedPipeline(RailPipeline):
 
         config_pars = CommonConfigParams.copy()
         config_pars['colnames'] = full_rename_dict.copy()
-        config_pars['colnames']['redshift'] = active_catalog_config.redshift_col
+        config_pars['colnames']['redshift'] = active_catalog_config.config['redshift_col']
 
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
@@ -59,36 +66,67 @@ class TruthToObservedPipeline(RailPipeline):
             self.unrec_bl = UnrecBlModel.build()
             previous_stage = self.unrec_bl
 
+
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
             if 'Bands' in val:
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
-
+            overrides = val.get('Overrides', {})
             the_error_model = error_model_class.make_and_connect(
                 name=f'error_model_{key}',
                 connections=dict(input=previous_stage.io.output),
-                hdf5_groupname='',
                 renameDict=rename_dict,
+                **overrides,
             )
             self.add_stage(the_error_model)
-            previous_stage = the_error_model
+            if parallel:
+                the_dereddener = Dereddener.make_and_connect(
+                    name=f'deredden_{key}',
+                    dustmap_dir=dustmap_dir,
+                    connections=dict(input=the_error_model.io.output),
+                    copy_all_cols=True,
+                )
+                self.add_stage(the_dereddener)
+                self._add_selectors(
+                    the_dereddener,
+                    key,
+                    selectors,
+                    config_pars,
+                )
+                previous_stage = self.reddener
+            else:
+                previous_stage = the_error_model
 
-            dereddener_errors = Dereddener.make_and_connect(
-                name=f"deredden_{key}",
+        if not parallel:
+            self.dereddener_errors = Dereddener.build(
                 dustmap_dir=dustmap_dir,
                 connections=dict(input=previous_stage.io.output),
                 copy_all_cols=True,
             )
-            self.add_stage(dereddener_errors)
-            previous_stage = dereddener_errors
+            self._add_selectors(
+                self.dereddener_errors,
+                key,
+                selectors,
+                config_pars,
+            )
 
-            for key2, val2 in selectors.items():
-                the_class = ceci.PipelineStage.get_stage(val2['Select'], val2['Module'])
-                the_selector = the_class.make_and_connect(
-                    name=f'select_{key}_{key2}',
-                    connections=dict(input=previous_stage.io.output),
-                    **config_pars,
-                )
-                self.add_stage(the_selector)
+
+    def _add_selectors(
+        self,
+        previous_stage,
+        key: str,
+        selectors: dict,
+        config_pars: dict,
+    ) -> None:
+
+
+        for keyS, valS in selectors.items():
+            the_class = ceci.PipelineStage.get_stage(valS['Select'], valS['Module'])
+            the_selector = the_class.make_and_connect(
+                name=f'select_{key}_{keyS}',
+                connections=dict(input=previous_stage.io.output),
+                **config_pars,
+            )
+            self.add_stage(the_selector)

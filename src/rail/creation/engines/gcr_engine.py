@@ -1,9 +1,10 @@
 """Stage that loads a catalog from GCRCatalogs."""
+
 import GCRCatalogs
 import pandas as pd
-from rail.creation.engine import Creator
-from rail.core.data import PqHandle
 from ceci.config import StageParameter as Param
+from rail.core.data import PqHandle
+from rail.creation.engine import Creator
 
 
 class GCRCreator(Creator):

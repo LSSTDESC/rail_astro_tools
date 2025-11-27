@@ -5,14 +5,12 @@ import os
 import numpy as np
 from ceci.config import StageParameter as Param
 from rail.creation.selector import Selector
-from scipy.interpolate import interp1d
 from rail.utils.path_utils import RAILDIR
+from scipy.interpolate import interp1d
 
 
 class SpecSelection(Selector):
-    """The super class of spectroscopic selections.
-
-    """
+    """The super class of spectroscopic selections."""
 
     name = "SpecSelection"
     config_options = Selector.config_options.copy()
@@ -26,7 +24,8 @@ class SpecSelection(Selector):
         ),
         success_rate_dir=Param(
             str,
-            os.path.join(RAILDIR,
+            os.path.join(
+                RAILDIR,
                 "rail/examples_data/creation_data/data/success_rate_data",
             ),
             msg="The path to the directory containing success rate files.",
@@ -65,7 +64,7 @@ class SpecSelection(Selector):
             )
 
     def validate_colnames(self, data):
-        """Validate the column names of data table to make sure they have 
+        """Validate the column names of data table to make sure they have
         necessary information for each selection.
 
         Parameters
@@ -84,9 +83,9 @@ class SpecSelection(Selector):
             )
 
     def selection(self, data):
-        """Selection functions. 
-        
-        This should be overwritten by the subclasses corresponding to different 
+        """Selection functions.
+
+        This should be overwritten by the subclasses corresponding to different
         spec selections.
         """
 
@@ -104,8 +103,7 @@ class SpecSelection(Selector):
             self.mask &= np.isfinite(data[colname])
 
     def downsampling_N_tot(self):
-        """Randomly sample down the objects to a given number of data objects.
-        """
+        """Randomly sample down the objects to a given number of data objects."""
         N_tot = self.config.N_tot
         N_selected = np.count_nonzero(self.mask)
         if N_tot > N_selected:
@@ -138,11 +136,12 @@ class SpecSelection(Selector):
         self.selection(data)
         if self.config.downsample is True:
             self.downsampling_N_tot()
-        
-        return self.mask
-#         data_selected = data.iloc[np.where(self.mask == 1)[0]]
 
-#         self.add_data("output", data_selected)
+        return self.mask
+
+    #         data_selected = data.iloc[np.where(self.mask == 1)[0]]
+
+    #         self.add_data("output", data_selected)
 
     def __repr__(self):
         """
@@ -154,14 +153,14 @@ class SpecSelection_GAMA(SpecSelection):
     """The class of spectroscopic selections with GAMA.
 
     The GAMA survey covers an area of 286 deg^2, with ~238000 objects.
-    
+
     The necessary column is r band.
     """
-    
+
     name = "SpecSelection_GAMA"
 
     def selection(self, data):
-        """GAMA selection function. """
+        """GAMA selection function."""
         print("Applying the selection from GAMA survey...")
         self.mask *= data[self.config.colnames["r"]] < 19.87
 
@@ -175,7 +174,7 @@ class SpecSelection_GAMA(SpecSelection):
 
 class SpecSelection_BOSS(SpecSelection):
     """The class of spectroscopic selections with BOSS.
-    
+
     BOSS selection function is based on
     http://www.sdss3.org/dr9/algorithms/boss_galaxy_ts.php
 
@@ -229,7 +228,7 @@ class SpecSelection_BOSS(SpecSelection):
         self.mask *= low_z | cmass
 
     def __repr__(self):
-        """ Define how the model is represented and printed."""
+        """Define how the model is represented and printed."""
         # start message
         printMsg = "Applying the BOSS selection."
 
@@ -241,8 +240,8 @@ class SpecSelection_DEEP2(SpecSelection):
 
     DEEP2 has a sky coverage of 2.8 deg^2 with ~53000 spectra.
 
-    For DEEP2, one needs R band magnitude, B-R/R-I colors--which are not 
-    available for the time being, so we use LSST gri bands now. When the 
+    For DEEP2, one needs R band magnitude, B-R/R-I colors--which are not
+    available for the time being, so we use LSST gri bands now. When the
     conversion degrader is ready, this subclass will be updated accordingly.
     """
 
@@ -251,7 +250,7 @@ class SpecSelection_DEEP2(SpecSelection):
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
 
-        This modified selection gives the best match to the data n(z) with its 
+        This modified selection gives the best match to the data n(z) with its
         cut at z~0.75 and the B-R/R-I distribution (Newman+13, Fig. 12).
 
         Notes
@@ -340,7 +339,7 @@ class SpecSelection_VVDSf02(SpecSelection):
 
         Notes
         -----
-        The oversight of 1.0 magnitudes on the bright end misses 0.2% of 
+        The oversight of 1.0 magnitudes on the bright end misses 0.2% of
         galaxies.
         """
         mask = (data[self.config.colnames["i"]] > 17.5) & (
@@ -355,11 +354,11 @@ class SpecSelection_VVDSf02(SpecSelection):
         Notes
         -----
         We use a redshift-based and I-band based success rate independently here
-        since we do not know their correlation, which makes the success rate 
+        since we do not know their correlation, which makes the success rate
         worse than in reality.
 
         Spec-z success rate as function of i_AB read of Figure 16 in LeFevre+05
-        for the VVDS 2h field. Values are binned in steps of 0.5 mag with the 
+        for the VVDS 2h field. Values are binned in steps of 0.5 mag with the
         first starting at 17 and the last bin ending at 24.
         """
         success_I_bins = np.arange(17.0, 24.0 + 0.01, 0.5)
@@ -520,12 +519,12 @@ class SpecSelection_HSC(SpecSelection):
         self.mask &= mask
 
     def speczSuccess(self, data):
-        """HSC galaxies were binned in color magnitude space with i-band mag 
-        from -2 to 6 and g-z color from 13 to 26 (200 bins in each direction). 
-        The ratio of galaxies with spectroscopic redshifts (training galaxies) 
-        to galaxies with only photometry in HSC wide field (application 
+        """HSC galaxies were binned in color magnitude space with i-band mag
+        from -2 to 6 and g-z color from 13 to 26 (200 bins in each direction).
+        The ratio of galaxies with spectroscopic redshifts (training galaxies)
+        to galaxies with only photometry in HSC wide field (application
         galaxies) was computed for each pixel. We divide the data into the same
-        pixels and randomly select galaxies into the training sample based on 
+        pixels and randomly select galaxies into the training sample based on
         the HSC ratios.
         """
         success_rate_dir = self.config.success_rate_dir

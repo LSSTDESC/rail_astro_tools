@@ -5,52 +5,69 @@ Source code from: https://github.com/jfcrenshaw/lbg_tools/blob/main/src/lbg_tool
 """
 
 import os
+
 import numpy as np
-from rail.creation.noisifier import Noisifier
-from rail.core.common_params import SHARED_PARAMS
-from rail.utils.path_utils import RAILDIR
 from ceci.config import StageParameter as Param
+from rail.core.common_params import SHARED_PARAMS
+from rail.creation.noisifier import Noisifier
+from rail.utils.path_utils import RAILDIR
 from scipy.interpolate import RegularGridInterpolator
+
 
 class IGMExtinctionModel(Noisifier):
     """Degrader that simulates IGM extinction.
 
-    Note that the extinction is only applied to u and g bands, 
+    Note that the extinction is only applied to u and g bands,
     assuming that the maximum redshift of the same is < ~3.
 
-    Note also that the code assumes the first two input 
-    bands are always u and g. These bands are also needed to 
-    compute the UV slope. 
+    Note also that the code assumes the first two input
+    bands are always u and g. These bands are also needed to
+    compute the UV slope.
 
-    An initial UV slope of -2 is assumed. There is option 
-    to update the UV slope through one iteration, based on 
+    An initial UV slope of -2 is assumed. There is option
+    to update the UV slope through one iteration, based on
     the u and g fluxes.
     """
 
-    name = 'IGMExtinctionModel'
+    name = "IGMExtinctionModel"
     config_options = Noisifier.config_options.copy()
     config_options.update(
-        data_path=Param(str, "None", msg="data_path (str): file path to the "
-                                          "FILTER directories.  If left to "
-                                          "default `None` it will use the install "
-                                          "directory for rail + rail/examples_data/estimation_data/data"),  
+        data_path=Param(
+            str,
+            "None",
+            msg="data_path (str): file path to the "
+            "FILTER directories.  If left to "
+            "default `None` it will use the install "
+            "directory for rail + rail/examples_data/estimation_data/data",
+        ),
         filter_list=SHARED_PARAMS,
         bands=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
-        compute_uv_slope=Param(bool, True, msg="whether to compute the UV slope"
-                                                "If not, the initial value of -2 will be used"),
-        optical_depth_interpolator=Param(bool, True, msg="whether to precompute optical depth as a function"
-                                                "of wavelength and redshift, and interpolate the grid."
-                                                "Notice that if False, the computation loops over all"
-                                                "objects, hence can take a very long time!"),
-        redshift_grid=Param(list, [1.5,4,100], msg="the redshift grid to interpolate on, enter a list containing:"
-                                                "z_min, z_max, number_of_grid. The default values should have"
-                                                "a precision that suffice most purpose"),
+        compute_uv_slope=Param(
+            bool,
+            True,
+            msg="whether to compute the UV slope"
+            "If not, the initial value of -2 will be used",
+        ),
+        optical_depth_interpolator=Param(
+            bool,
+            True,
+            msg="whether to precompute optical depth as a function"
+            "of wavelength and redshift, and interpolate the grid."
+            "Notice that if False, the computation loops over all"
+            "objects, hence can take a very long time!",
+        ),
+        redshift_grid=Param(
+            list,
+            [1.5, 4, 100],
+            msg="the redshift grid to interpolate on, enter a list containing:"
+            "z_min, z_max, number_of_grid. The default values should have"
+            "a precision that suffice most purpose",
+        ),
     )
 
     def __init__(self, args, **kwargs):
-        """
-        """
+        """ """
         super().__init__(args, **kwargs)
 
         # Table 2 from arXiv:1402.0677
@@ -96,7 +113,7 @@ class IGMExtinctionModel(Noisifier):
            40 &  912.324 & 1.510e-05 & 2.103e-06 & 9.169e-08 & 1.002e-04 & 3.339e-05 \\
         """
         self._lambda_L = 911.8
-        
+
         _tls_params_list = []
         for row in _table.split(" \\")[:-1]:
             _tls_params_list.append([float(p) for p in row.split(" & ")[1:]])
@@ -106,24 +123,28 @@ class IGMExtinctionModel(Noisifier):
 
         datapath = self.config["data_path"]
         if datapath is None or datapath == "None":
-            tmpdatapath = os.path.join(RAILDIR, "rail/examples_data/estimation_data/data")
+            tmpdatapath = os.path.join(
+                RAILDIR, "rail/examples_data/estimation_data/data"
+            )
             self.data_path = tmpdatapath
         else:  # pragma: no cover
             self.data_path = datapath
         if not os.path.exists(self.data_path):  # pragma: no cover
-            raise FileNotFoundError(self.data_path + " does not exist! Check value of data_path in config file!")
+            raise FileNotFoundError(
+                self.data_path
+                + " does not exist! Check value of data_path in config file!"
+            )
 
-    
     def _tls_laf(self, wavelen: np.ndarray, z: float) -> np.ndarray:
         """Calculate optical depth contribution from Lyman-series: Lya Forest
-    
+
         Parameters
         ----------
         wavelen : np.ndarray
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
@@ -132,43 +153,42 @@ class IGMExtinctionModel(Noisifier):
         # Evaluate power-law terms at every wavelength
         w = wavelen[:, None] / self._tls_params[None, :, 0]
         vals = self._tls_params[:, 1:4] * np.power(w[..., None], [1.2, 3.7, 5.5])
-    
+
         # Zero points outside of appropriate wavelength ranges
         mask = (w > 1) & (w < 1 + z)
         vals *= mask[..., None]
-    
+
         # Apply mask so only appropriate coefficient contributes to each
         mask = w < 2.2
         vals[..., 0] *= mask
-    
+
         mask = (w >= 2.2) & (w < 5.7)
         vals[..., 1] *= mask
-    
+
         mask = w >= 5.7
         vals[..., 2] *= mask
-    
+
         # Sum over last axis. After masks, there is only non-zero element in each of
         # these sums, so the sum is really just to pick up that non-zero element
         vals = vals.sum(axis=-1)
-    
+
         # Finally sum over the contributions from every Lyman transition
         # Note this could be combined with previous sum, but I separated them to
         # make the logic a little easier to parse.
         tau = vals.sum(axis=-1)
-    
+
         return tau
-    
-    
+
     def _tls_dla(self, wavelen: np.ndarray, z: float) -> np.ndarray:
         """Calculate optical depth contribution from Lyman-series: Damped Lya Systems
-    
+
         Parameters
         ----------
         wavelen : np.ndarray
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
@@ -177,40 +197,39 @@ class IGMExtinctionModel(Noisifier):
         # Evaluate power-law terms at every wavelength
         w = wavelen[:, None] / self._tls_params[None, :, 0]
         vals = self._tls_params[:, 4:] * np.power(w[..., None], [2.0, 3.0])
-    
+
         # Zero points outside of appropriate wavelength ranges
         mask = (w > 1) & (w < 1 + z)
         vals *= mask[..., None]
-    
+
         # Apply mask so only appropriate coefficient contributes to each
         mask = w < 3.0
         vals[..., 0] *= mask
-    
+
         mask = w >= 3.0
         vals[..., 1] *= mask
-    
+
         # Sum over last axis. After masks, there is only non-zero element in each of
         # these sums, so the sum is really just to pick up that non-zero element
         vals = vals.sum(axis=-1)
-    
+
         # Finally sum over the contributions from every Lyman transition
         # Note this could be combined with previous sum, but I separated them to
         # make the logic a little easier to parse.
         tau = vals.sum(axis=-1)
-    
+
         return tau
-    
-    
+
     def _tlc_laf(self, wavelen: np.ndarray, z: float) -> np.ndarray:
         """Calculate optical depth contribution from Lyman-continuum: Lya Forest
-    
+
         Parameters
         ----------
         wavelen : np.ndarray
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
@@ -218,25 +237,25 @@ class IGMExtinctionModel(Noisifier):
         """
         with np.errstate(divide="ignore"):
             w = wavelen / self._lambda_L
-    
+
             tau = np.zeros_like(w)
-    
+
             if z < 1.2:
                 mask = (w >= 1) & (z < 1.2) & (w < 1 + z)
                 vals = 0.325 * (w**1.2 - (1 + z) ** (-0.9) * w**2.1)
                 tau[mask] = vals[mask]
-    
+
             if (z >= 1.2) & (z < 4.7):
                 mask = (w >= 1) & (z >= 1.2) & (z < 4.7) & (w < 2.2)
                 vals = (
                     2.55e-2 * (1 + z) ** 1.6 * w**2.1 + 0.325 * w**1.2 - 0.25 * w**2.1
                 )
                 tau[mask] = vals[mask]
-    
+
                 mask = (w >= 1) & (z >= 1.2) & (z < 4.7) & (w >= 2.2) & (w < 1 + z)
                 vals = 2.55e-2 * ((1 + z) ** 1.6 * w**2.1 - w**3.7)
                 tau[mask] = vals[mask]
-    
+
             else:
                 mask = (w >= 1) & (z >= 4.7) & (w < 2.2)
                 vals = (
@@ -245,7 +264,7 @@ class IGMExtinctionModel(Noisifier):
                     - 3.14e-2 * w**2.1
                 )
                 tau[mask] = vals[mask]
-    
+
                 mask = (w >= 1) & (z >= 4.7) & (w >= 2.2) & (w < 5.7)
                 vals = (
                     5.22e-4 * (1 + z) ** 3.4 * w**2.1
@@ -253,31 +272,30 @@ class IGMExtinctionModel(Noisifier):
                     - 2.55e-2 * w**3.7
                 )
                 tau[mask] = vals[mask]
-    
+
                 mask = (w >= 1) & (z >= 4.7) & (w >= 5.7) & (w < 1 + z)
                 vals = 5.22e-4 * ((1 + z) ** 3.4 * w**2.1 - w**5.5)
                 tau[mask] = vals[mask]
-    
+
         # Fix for low-wavelength continuum from FSPS
         # i.e., continuum fitting function decreases at low-wavelengths, which isn't
         # expected. As continuum tau starts to decrease towards lower wavelength,
         # we simply set values to the max value
         idx = np.nanargmax(tau)
         tau[:idx] = tau[idx]
-    
+
         return tau
-    
-    
+
     def _tlc_dla(self, wavelen: np.ndarray, z: float) -> np.ndarray:
         """Calculate optical depth contribution from Lyman-continuum: Damped Lya Systems
-    
+
         Parameters
         ----------
         wavelen : np.ndarray
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
@@ -285,9 +303,9 @@ class IGMExtinctionModel(Noisifier):
         """
         with np.errstate(divide="ignore"):
             w = wavelen / self._lambda_L
-    
+
             tau = np.zeros_like(w)
-    
+
             if z < 2.0:
                 mask = (w >= 1) & (z < 2) & (w < 1 + z)
                 vals = (
@@ -296,7 +314,7 @@ class IGMExtinctionModel(Noisifier):
                     - 0.135 * w**2
                 )
                 tau[mask] = vals[mask]
-    
+
             if z >= 2.0:
                 mask = (w >= 1) & (z >= 2) & (w < 3)
                 vals = (
@@ -307,7 +325,7 @@ class IGMExtinctionModel(Noisifier):
                     - 0.291 * w ** (-0.3)
                 )
                 tau[mask] = vals[mask]
-    
+
                 mask = (w >= 1) & (z >= 2) & (w >= 3) & (w < 1 + z)
                 vals = (
                     4.7e-2 * (1 + z) ** 3
@@ -315,27 +333,26 @@ class IGMExtinctionModel(Noisifier):
                     - 2.92e-2 * w**3
                 )
                 tau[mask] = vals[mask]
-    
+
         # Fix for low-wavelength continuum from FSPS
         # i.e., continuum fitting function decreases at low-wavelengths, which isn't
         # expected. As continuum tau starts to decrease towards lower wavelength,
         # we simply set values to the max value
         idx = np.nanargmax(tau)
         tau[:idx] = tau[idx]
-    
+
         return tau
-    
-    
+
     def _igm_tau(self, wavelen: float | np.ndarray, z: float) -> np.ndarray:
         """Calculate optical depth of the IGM using the Inoue model.
-    
+
         Parameters
         ----------
         wavelen : float | np.ndarray
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
@@ -343,7 +360,7 @@ class IGMExtinctionModel(Noisifier):
         """
         # Make sure wavelength is an array
         wavelen = np.atleast_1d(wavelen).astype(float)
-    
+
         # Optical depth of IGM due to Lyman transitions
         return (
             self._tls_laf(wavelen, z)
@@ -361,29 +378,31 @@ class IGMExtinctionModel(Noisifier):
             Observed wavelength in Angstroms
         z : float
             Redshift
-    
+
         Returns
         -------
         np.ndarray
            IGM transmission T(wavelen, z)
         """
-        tau = self._igm_tau(wavelen,z)
+        tau = self._igm_tau(wavelen, z)
         return np.exp(-tau)
 
     def _get_uv_slope(self, u, g, mean_wavelen_u, mean_wavelen_g):
-        return (u - g)/(-2.5*np.log10(mean_wavelen_u/mean_wavelen_g)) - 2 
+        return (u - g) / (-2.5 * np.log10(mean_wavelen_u / mean_wavelen_g)) - 2
 
     def _compute_mean_wavelen_filter(self, band, beta_uv=None):
         if beta_uv == None:
             beta_uv = self.beta_uv_init
-        return np.sum(self.wavelen**(beta_uv+2) * self.filters[band] * self.dwavelen) / np.sum( self.wavelen**(beta_uv+1) * self.filters[band] * self.dwavelen)
-    
+        return np.sum(
+            self.wavelen ** (beta_uv + 2) * self.filters[band] * self.dwavelen
+        ) / np.sum(self.wavelen ** (beta_uv + 1) * self.filters[band] * self.dwavelen)
+
     def _initNoiseModel(self):
-        """ Initialize the noise model
+        """Initialize the noise model
 
         Notes
         -----
-        Load in the filters, set up wavelength grids 
+        Load in the filters, set up wavelength grids
         and compute mean u and g wavelength if needed
         """
 
@@ -391,23 +410,26 @@ class IGMExtinctionModel(Noisifier):
         filters = {}
         for i, f in enumerate(filter_list[:2]):
             fin = np.loadtxt(self.data_path + "/FILTER/" + f + ".res")
-            filters[self.config.bands[i]]=fin[:,1]
+            filters[self.config.bands[i]] = fin[:, 1]
 
         self.filters = filters
-        self.wavelen = fin[:,0]
-        self.dwavelen = self.wavelen[1]- self.wavelen[0] 
+        self.wavelen = fin[:, 0]
+        self.dwavelen = self.wavelen[1] - self.wavelen[0]
 
         if self.config.compute_uv_slope == True:
             # these are computed using initial guess of beta_uv=-2
-            self.mean_wavelen_u = self._compute_mean_wavelen_filter(self.config.bands[0])
-            self.mean_wavelen_g = self._compute_mean_wavelen_filter(self.config.bands[1])
+            self.mean_wavelen_u = self._compute_mean_wavelen_filter(
+                self.config.bands[0]
+            )
+            self.mean_wavelen_g = self._compute_mean_wavelen_filter(
+                self.config.bands[1]
+            )
         else:
             self.mean_wavelen_u = None
-            self.mean_wavelen_g = None   
-        
-    
+            self.mean_wavelen_g = None
+
     def _addNoise(self):
-        """ Run method
+        """Run method
 
         Applies IGM extinction in u and g bands.
 
@@ -426,49 +448,76 @@ class IGMExtinctionModel(Noisifier):
             # precise computation
             for i in range(Nobj):
                 # currently this is not efficient
-                T_igm = self._igm_transmission(self.wavelen, data[self.config.redshift_col][i])
-                
+                T_igm = self._igm_transmission(
+                    self.wavelen, data[self.config.redshift_col][i]
+                )
+
                 if self.config.compute_uv_slope == False:
                     beta_uv = self.beta_uv_init
                 else:
-                    beta_uv = self._get_uv_slope(data[self.config.bands[0]][i],
-                                           data[self.config.bands[1]][i],
-                                            self.mean_wavelen_u, self.mean_wavelen_g)
-    
+                    beta_uv = self._get_uv_slope(
+                        data[self.config.bands[0]][i],
+                        data[self.config.bands[1]][i],
+                        self.mean_wavelen_u,
+                        self.mean_wavelen_g,
+                    )
+
                 for band in self.config.bands[:2]:
                     # compute this for u and g band only, as
                     # other bands have negligible impact
                     R_m = self.filters[band]
-                    R_m_tilde_norm = np.sum(self.wavelen**(beta_uv + 1) * R_m * self.dwavelen)
-                    R_m_tilde = self.wavelen**(beta_uv + 1)*R_m / R_m_tilde_norm
+                    R_m_tilde_norm = np.sum(
+                        self.wavelen ** (beta_uv + 1) * R_m * self.dwavelen
+                    )
+                    R_m_tilde = self.wavelen ** (beta_uv + 1) * R_m / R_m_tilde_norm
                     flux_ratio_igm = np.sum(T_igm * R_m_tilde * self.dwavelen)
-                    delta_m= -2.5*np.log10(flux_ratio_igm)
+                    delta_m = -2.5 * np.log10(flux_ratio_igm)
                     outData[band][i] = data[band][i] + delta_m
-        
+
         elif self.config.optical_depth_interpolator == True:
             # build the interpolation grid
-            z = np.linspace(self.config.redshift_grid[0],self.config.redshift_grid[1],self.config.redshift_grid[2])
+            z = np.linspace(
+                self.config.redshift_grid[0],
+                self.config.redshift_grid[1],
+                self.config.redshift_grid[2],
+            )
             Tm = np.zeros((len(self.wavelen), len(z)))
             for ii in range(len(z)):
-                Tm[:,ii] = self._igm_transmission(self.wavelen,z[ii])
-            
-            Tm_funct = RegularGridInterpolator((self.wavelen, z), Tm, bounds_error=False, fill_value=0)
-            wavelen_grid, redshift_grid = np.meshgrid(self.wavelen, data[self.config.redshift_col], indexing='ij')
+                Tm[:, ii] = self._igm_transmission(self.wavelen, z[ii])
+
+            Tm_funct = RegularGridInterpolator(
+                (self.wavelen, z), Tm, bounds_error=False, fill_value=0
+            )
+            wavelen_grid, redshift_grid = np.meshgrid(
+                self.wavelen, data[self.config.redshift_col], indexing="ij"
+            )
             T_interp = Tm_funct((wavelen_grid, redshift_grid))
-            
+
             if self.config.compute_uv_slope == False:
-                beta_uv = self.beta_uv_init*np.ones(Nobj)
+                beta_uv = self.beta_uv_init * np.ones(Nobj)
             else:
-                beta_uv = self._get_uv_slope(data[self.config.bands[0]].to_numpy(),
-                                             data[self.config.bands[1]].to_numpy(),
-                                             self.mean_wavelen_u, self.mean_wavelen_g)
-                
+                beta_uv = self._get_uv_slope(
+                    data[self.config.bands[0]].to_numpy(),
+                    data[self.config.bands[1]].to_numpy(),
+                    self.mean_wavelen_u,
+                    self.mean_wavelen_g,
+                )
+
             for band in self.config.bands[:2]:
                 R_m = self.filters[band]
-                R_m_tilde_norm = np.sum(self.wavelen[:,None]**(beta_uv[None,:]+1) * R_m[:,None] * self.dwavelen, axis=0)
-                R_m_tilde = self.wavelen[:,None]**(beta_uv[None,:]+1) * R_m[:,None]/R_m_tilde_norm
+                R_m_tilde_norm = np.sum(
+                    self.wavelen[:, None] ** (beta_uv[None, :] + 1)
+                    * R_m[:, None]
+                    * self.dwavelen,
+                    axis=0,
+                )
+                R_m_tilde = (
+                    self.wavelen[:, None] ** (beta_uv[None, :] + 1)
+                    * R_m[:, None]
+                    / R_m_tilde_norm
+                )
                 flux_ratio_igm = np.sum(T_interp * R_m_tilde * self.dwavelen, axis=0)
-                delta_m= -2.5*np.log10(flux_ratio_igm)
+                delta_m = -2.5 * np.log10(flux_ratio_igm)
                 outData[band] = data[band] + delta_m
 
-        self.add_data('output', outData)
+        self.add_data("output", outData)

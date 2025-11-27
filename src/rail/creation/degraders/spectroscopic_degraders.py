@@ -3,9 +3,8 @@
 import numpy as np
 import pandas as pd
 from ceci.config import StageParameter as Param
-from rail.creation.selector import Selector
 from rail.creation.noisifier import Noisifier
-
+from rail.creation.selector import Selector
 
 
 class LineConfusion(Noisifier):
@@ -28,32 +27,44 @@ class LineConfusion(Noisifier):
 
     """
 
-    name = 'LineConfusion'
+    name = "LineConfusion"
     config_options = Noisifier.config_options.copy()
     config_options.update(
-        true_wavelen=Param(float, required=True, msg="wavelength of the true emission line"),
-        wrong_wavelen=Param(float, required=True, msg="wavelength of the wrong emission line"),
-        frac_wrong=Param(float, required=True, msg="fraction of galaxies with confused emission lines"),
+        true_wavelen=Param(
+            float, required=True, msg="wavelength of the true emission line"
+        ),
+        wrong_wavelen=Param(
+            float, required=True, msg="wavelength of the wrong emission line"
+        ),
+        frac_wrong=Param(
+            float,
+            required=True,
+            msg="fraction of galaxies with confused emission lines",
+        ),
     )
 
     def __init__(self, args, **kwargs):
-        """
-        """
+        """ """
         super().__init__(args, **kwargs)
         # validate parameters
         if self.config.true_wavelen < 0:
-            raise ValueError("true_wavelen must be positive, not {self.config.true_wavelen}")
+            raise ValueError(
+                "true_wavelen must be positive, not {self.config.true_wavelen}"
+            )
         if self.config.wrong_wavelen < 0:
-            raise ValueError("wrong_wavelen must be positive, not {self.config.wrong_wavelen}")
+            raise ValueError(
+                "wrong_wavelen must be positive, not {self.config.wrong_wavelen}"
+            )
         if self.config.frac_wrong < 0 or self.config.frac_wrong > 1:
-            raise ValueError("frac_wrong must be between 0 and 1., not {self.config.wrong_wavelen}")
-            
-            
+            raise ValueError(
+                "frac_wrong must be between 0 and 1., not {self.config.wrong_wavelen}"
+            )
+
     def _initNoiseModel(self):
         self.rng = np.random.default_rng(self.config.seed)
 
     def _addNoise(self):
-        """ Run method
+        """Run method
 
         Applies line confusion
 
@@ -62,7 +73,7 @@ class LineConfusion(Noisifier):
         Get the input data from the data store under this stages 'input' tag
         Puts the data into the data store under this stages 'output' tag
         """
-        data = self.get_data('input')
+        data = self.get_data("input")
 
         # convert to an array for easy manipulation
         values, columns = data.values.copy(), data.columns.copy()
@@ -86,12 +97,11 @@ class LineConfusion(Noisifier):
 
         # return results in a data frame
         outData = pd.DataFrame(values, columns=columns)
-        self.add_data('output', outData)
+        self.add_data("output", outData)
 
 
 class InvRedshiftIncompleteness(Selector):
-    """Degrader that simulates incompleteness with a selection function
-    inversely proportional to redshift.
+    """Degrader that simulates incompleteness with a selection function inversely proportional to redshift.
 
     The survival probability of this selection function is
     p(z) = min(1, z_p/z),
@@ -99,21 +109,24 @@ class InvRedshiftIncompleteness(Selector):
 
     """
 
-    name = 'InvRedshiftIncompleteness'
+    name = "InvRedshiftIncompleteness"
     config_options = Selector.config_options.copy()
     config_options.update(
-        pivot_redshift=Param(float, required=True, msg="redshift at which the incompleteness begins"),
-    )    
+        pivot_redshift=Param(
+            float, required=True, msg="redshift at which the incompleteness begins"
+        ),
+    )
 
     def __init__(self, args, **kwargs):
-        """
-        """
+        """ """
         super().__init__(args, **kwargs)
         if self.config.pivot_redshift < 0:
-            raise ValueError("pivot redshift must be positive, not {self.config.pivot_redshift}")
+            raise ValueError(
+                "pivot redshift must be positive, not {self.config.pivot_redshift}"
+            )
 
     def _select(self):
-        """ Run method
+        """Run method
 
         Applies incompleteness
 
@@ -122,7 +135,7 @@ class InvRedshiftIncompleteness(Selector):
         Get the input data from the data store under this stages 'input' tag
         Puts the data into the data store under this stages 'output' tag
         """
-        data = self.get_data('input')
+        data = self.get_data("input")
 
         # calculate survival probability for each galaxy
         survival_prob = np.clip(self.config.pivot_redshift / data["redshift"], 0, 1)

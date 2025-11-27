@@ -5,17 +5,20 @@ import numpy as np
 import pandas as pd
 import pytest
 from photerr import LsstErrorModel as PhoterrErrorModel
-
 from rail.core.data import DATA_STORE, TableHandle
 from rail.utils.path_utils import find_rail_file
-from rail.tools.table_tools import ColumnMapper
-from rail.creation.degraders.spectroscopic_degraders import InvRedshiftIncompleteness, LineConfusion
-from rail.creation.degraders.spectroscopic_selections import *
-from rail.creation.degraders.observing_condition_degrader import ObsCondition
+
 from rail.creation.degraders.grid_selection import GridSelection
-from rail.creation.degraders.photometric_errors import *
-from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 from rail.creation.degraders.lya_degrader import IGMExtinctionModel
+from rail.creation.degraders.observing_condition_degrader import ObsCondition
+from rail.creation.degraders.photometric_errors import *
+from rail.creation.degraders.spectroscopic_degraders import (
+    InvRedshiftIncompleteness,
+    LineConfusion,
+)
+from rail.creation.degraders.spectroscopic_selections import *
+from rail.creation.degraders.unrec_bl_model import UnrecBlModel
+from rail.tools.table_tools import ColumnMapper
 
 
 @pytest.fixture
@@ -55,6 +58,7 @@ def data_forspec():
     df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y"])
     return DS.add_data("data_forspec", df, TableHandle, path="dummy_forspec.pd")
 
+
 @pytest.fixture
 def data_with_radec():
     DS = DATA_STORE()
@@ -64,15 +68,17 @@ def data_with_radec():
     rng = np.random.default_rng(0)
     x = rng.normal(loc=26, scale=1, size=(100, 7))
     # for simplicity we will not sample uniformly on sphere
-    ra = rng.uniform(low=40, high=80, size=(100,1))
-    dec = rng.uniform(low=-50, high=-25, size=(100,1))
+    ra = rng.uniform(low=40, high=80, size=(100, 1))
+    dec = rng.uniform(low=-50, high=-25, size=(100, 1))
     # replace redshifts with reasonable values
     x[:, 0] = np.linspace(0, 2, x.shape[0])
-    x=np.append(x, ra, axis=1)
-    x=np.append(x, dec, axis=1)
+    x = np.append(x, ra, axis=1)
+    x = np.append(x, dec, axis=1)
 
     # return data in handle wrapping a pandas DataFrame
-    df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y", "ra", "dec"])
+    df = pd.DataFrame(
+        x, columns=["redshift", "u", "g", "r", "i", "z", "y", "ra", "dec"]
+    )
     return DS.add_data("data_with_radec", df, TableHandle, path="dummy_with_radec.pd")
 
 
@@ -84,7 +90,7 @@ def data_for_bl():
     DS.__class__.allow_overwrite = True
 
     # generate random normal data
-    columns=['ra', 'dec', 'u', 'g', 'r', 'i', 'z', 'y', 'redshift']
+    columns = ["ra", "dec", "u", "g", "r", "i", "z", "y", "redshift"]
     rng = np.random.default_rng(0)
     x = rng.normal(loc=23, scale=3, size=(1000, len(columns)))
 
@@ -98,7 +104,9 @@ def data_for_bl():
     return DS.add_data("data_for_bl", df, TableHandle, path="dummy_for_bl.pd")
 
 
-@pytest.mark.parametrize("pivot_redshift,errortype", [("fake", TypeError), (-1, ValueError)])
+@pytest.mark.parametrize(
+    "pivot_redshift,errortype", [("fake", TypeError), (-1, ValueError)]
+)
 def test_InvRedshiftIncompleteness_bad_params(pivot_redshift, errortype):
     """Test bad parameters that should raise ValueError"""
     with pytest.raises(errortype):
@@ -107,13 +115,13 @@ def test_InvRedshiftIncompleteness_bad_params(pivot_redshift, errortype):
 
 def test_InvRedshiftIncompleteness_returns_correct_shape(data):
     """Make sure returns same number of columns, fewer rows"""
-    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0, seed = 12345)
+    degrader = InvRedshiftIncompleteness.make_stage(pivot_redshift=1.0, seed=12345)
     degraded_data = degrader(data).data
     assert degraded_data.shape[0] < data.data.shape[0]
     assert degraded_data.shape[1] == data.data.shape[1]
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
-    
+
 def test_LineConfusion_returns_correct_shape(data):
     """Make sure returns same number of columns, fewer rows"""
     OII = 3727
@@ -125,14 +133,20 @@ def test_LineConfusion_returns_correct_shape(data):
     lc_1p_0III_0II = LineConfusion.make_stage(
         name="lc_1p_0III_0II", true_wavelen=OIII, wrong_wavelen=OII, frac_wrong=0.01
     )
-    degraded_data = lc_1p_0III_0II(
-        lc_2p_0II_0III(data)
-    ).data
+    degraded_data = lc_1p_0III_0II(lc_2p_0II_0III(data)).data
     assert degraded_data.shape[0] <= data.data.shape[0]
     assert degraded_data.shape[1] == data.data.shape[1]
-    os.remove(lc_2p_0II_0III.get_output(lc_2p_0II_0III.get_aliased_tag("output"), final_name=True))
-    os.remove(lc_1p_0III_0II.get_output(lc_1p_0III_0II.get_aliased_tag("output"), final_name=True))
-    
+    os.remove(
+        lc_2p_0II_0III.get_output(
+            lc_2p_0II_0III.get_aliased_tag("output"), final_name=True
+        )
+    )
+    os.remove(
+        lc_1p_0III_0II.get_output(
+            lc_1p_0III_0II.get_aliased_tag("output"), final_name=True
+        )
+    )
+
 
 @pytest.mark.parametrize(
     "percentile_cut,redshift_cut,errortype",
@@ -141,7 +155,9 @@ def test_LineConfusion_returns_correct_shape(data):
 def test_GridSelection_bad_params(percentile_cut, redshift_cut, errortype):
     """Test bad parameters that should raise ValueError"""
     with pytest.raises(errortype):
-        GridSelection.make_stage(percentile_cut=percentile_cut, redshift_cut=redshift_cut)
+        GridSelection.make_stage(
+            percentile_cut=percentile_cut, redshift_cut=redshift_cut
+        )
 
 
 def test_GridSelection_returns_correct_shape(data):
@@ -149,10 +165,9 @@ def test_GridSelection_returns_correct_shape(data):
     degrader = GridSelection.make_stage(pessimistic_redshift_cut=1.0)
     degraded_data = degrader(data).data
     assert degraded_data.shape[0] < data.data.shape[0]
-    assert degraded_data.shape[1] == data.data.shape[1] 
+    assert degraded_data.shape[1] == data.data.shape[1]
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
-    
 
 def test_SpecSelection(data):
     bands = ["u", "g", "r", "i", "z", "y"]
@@ -170,41 +185,63 @@ def test_SpecSelection(data):
     degrader_GAMA(data)
     degrader_GAMA.__repr__()
 
-    os.remove(degrader_GAMA.get_output(degrader_GAMA.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_GAMA.get_output(
+            degrader_GAMA.get_aliased_tag("output"), final_name=True
+        )
+    )
 
     degrader_BOSS = SpecSelection_BOSS.make_stage()
     degrader_BOSS(data)
     degrader_BOSS.__repr__()
 
-    os.remove(degrader_BOSS.get_output(degrader_BOSS.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_BOSS.get_output(
+            degrader_BOSS.get_aliased_tag("output"), final_name=True
+        )
+    )
 
     degrader_DEEP2 = SpecSelection_DEEP2.make_stage()
     degrader_DEEP2(data)
     degrader_DEEP2.__repr__()
 
-    os.remove(degrader_DEEP2.get_output(degrader_DEEP2.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_DEEP2.get_output(
+            degrader_DEEP2.get_aliased_tag("output"), final_name=True
+        )
+    )
 
     degrader_VVDSf02 = SpecSelection_VVDSf02.make_stage()
     degrader_VVDSf02(data)
     degrader_VVDSf02.__repr__()
 
-    degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(colnames={"i": "mag_i_lsst", "redshift": "redshift"})
+    degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(
+        colnames={"i": "mag_i_lsst", "redshift": "redshift"}
+    )
     degrader_zCOSMOS(data)
     degrader_zCOSMOS.__repr__()
 
-    os.remove(degrader_zCOSMOS.get_output(degrader_zCOSMOS.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_zCOSMOS.get_output(
+            degrader_zCOSMOS.get_aliased_tag("output"), final_name=True
+        )
+    )
 
     degrader_HSC = SpecSelection_HSC.make_stage()
     degrader_HSC(data)
     degrader_HSC.__repr__()
 
-    os.remove(degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True)
+    )
 
     degrader_HSC = SpecSelection_HSC.make_stage(percentile_cut=70)
     degrader_HSC(data)
     degrader_HSC.__repr__()
 
-    os.remove(degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True)
+    )
 
 
 def test_SpecSelection_low_N_tot(data_forspec):
@@ -222,7 +259,11 @@ def test_SpecSelection_low_N_tot(data_forspec):
     degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(N_tot=1)
     degrader_zCOSMOS(data_forspec)
 
-    os.remove(degrader_zCOSMOS.get_output(degrader_zCOSMOS.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_zCOSMOS.get_output(
+            degrader_zCOSMOS.get_aliased_tag("output"), final_name=True
+        )
+    )
 
 
 @pytest.mark.parametrize("N_tot, errortype", [(-1, ValueError)])
@@ -232,7 +273,7 @@ def test_SpecSelection_bad_params(N_tot, errortype):
         SpecSelection.make_stage(N_tot=N_tot)
 
 
-@pytest.mark.parametrize("errortype", [(ValueError)])
+@pytest.mark.parametrize("errortype", [ValueError])
 def test_SpecSelection_bad_colname(data, errortype):
     """Test bad parameters that should raise TypeError"""
     with pytest.raises(errortype):
@@ -240,7 +281,9 @@ def test_SpecSelection_bad_colname(data, errortype):
         degrader_GAMA(data)
 
 
-@pytest.mark.parametrize("success_rate_dir, errortype", [("/this/path/should/not/exist", ValueError)])
+@pytest.mark.parametrize(
+    "success_rate_dir, errortype", [("/this/path/should/not/exist", ValueError)]
+)
 def test_SpecSelection_bad_path(success_rate_dir, errortype):
     """Test bad parameters that should raise TypeError"""
     with pytest.raises(errortype):
@@ -253,7 +296,7 @@ def test_ObsCondition_returns_correct_shape(data):
     degrader = ObsCondition.make_stage()
 
     degraded_data = degrader(data).data
-    
+
     # columns added: pixel, ugrizyerrors, ra, dec
     assert degraded_data.shape == (data.data.shape[0], 2 * data.data.shape[1] + 2)
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
@@ -274,7 +317,9 @@ def test_ObsCondition_random_seed(data):
     degraded_data3 = degrader3(data).data.to_numpy()
     assert not degraded_data1.equals(degraded_data3)
 
-    os.remove(degrader3.get_output(degrader3.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader3.get_output(degrader3.get_aliased_tag("output"), final_name=True)
+    )
 
 
 @pytest.mark.parametrize(
@@ -348,7 +393,9 @@ def test_ObsCondition_extended(data):
     # Testing extended parameter values
     weight = ""
     map_dict = {
-        "airmass": find_rail_file('examples_data/creation_data/data/survey_conditions/minion_1016_dc2_Median_airmass_i_and_nightlt1825_HEAL.fits'),
+        "airmass": find_rail_file(
+            "examples_data/creation_data/data/survey_conditions/minion_1016_dc2_Median_airmass_i_and_nightlt1825_HEAL.fits"
+        ),
         "EBV": 0.0,
         "nVisYr": {"u": 50.0},
         "tvis": 30.0,
@@ -365,7 +412,9 @@ def test_ObsCondition_extended(data):
     degrader_ext(data)
     degrader_ext.__repr__()
 
-    os.remove(degrader_ext.get_output(degrader_ext.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_ext.get_output(degrader_ext.get_aliased_tag("output"), final_name=True)
+    )
 
 
 def test_ObsCondition_empty_map_dict(data):
@@ -378,25 +427,37 @@ def test_ObsCondition_empty_map_dict(data):
     degraded_data2 = degrader2(data.data, random_state=0)
     assert degraded_data1.equals(degraded_data2)
 
-    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
-    
+    os.remove(
+        degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True)
+    )
+
 
 def test_ObsCondition_renameDict(data_with_radec):
     """Test with renameDict included"""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0,"renameDict": {"u": "u", "ra": "ra", "dec":"dec"},})
+    degrader1 = ObsCondition.make_stage(
+        random_seed=0,
+        map_dict={
+            "EBV": 0.0,
+            "renameDict": {"u": "u", "ra": "ra", "dec": "dec"},
+        },
+    )
 
     # make sure setting the same seeds yields the same output
     degraded_data1 = degrader1(data_with_radec).data
 
-    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
-    
-    
+    os.remove(
+        degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True)
+    )
+
+
 def test_ObsCondition_data_with_radec(data_with_radec):
     """Test with ra dec in data"""
     degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0})
     degraded_data1 = degrader1(data_with_radec).data
 
-    os.remove(degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader1.get_output(degrader1.get_aliased_tag("output"), final_name=True)
+    )
 
 
 def test_LSSTErrorModel_returns_correct_columns(data):
@@ -426,7 +487,7 @@ def test_LSSTErrorModel_returns_correct_columns(data):
         (EuclidErrorModel),
         (EuclidWideErrorModel),
         (EuclidDeepErrorModel),
-    ]
+    ],
 )
 def test_error_models(data, error_model_class):
     # Setup the stage
@@ -438,19 +499,20 @@ def test_BLModel(data_for_bl):
     # Setup the stage
 
     degrader = UnrecBlModel.make_stage(
-        name='unrec_bl_model',
-        ra_label='ra',
-        dec_label='dec',
+        name="unrec_bl_model",
+        ra_label="ra",
+        dec_label="dec",
         linking_lengths=1.0,
-        bands='ugrizy',
-        ref_band='i',
-	redshift_col='redshift',
-        seed=1234)
+        bands="ugrizy",
+        ref_band="i",
+        redshift_col="redshift",
+        seed=1234,
+    )
 
     # Apply the degrader and get the data out
     outputs = degrader(data_for_bl)
-    degraded_data = outputs['output'].data
-    truth_components = outputs['compInd'].data
+    degraded_data = outputs["output"].data
+    truth_components = outputs["compInd"].data
 
     # Check output data has less rows than input data
     assert degraded_data.shape[0] < data_for_bl.data.shape[0]
@@ -466,15 +528,15 @@ def test_BLModel(data_for_bl):
     "compute_uv_slope, optical_depth_interpolator",
     [
         (True, True),
-        (False,True),
+        (False, True),
         (True, False),
-        (False,False),
+        (False, False),
     ],
 )
 def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
     degrader = IGMExtinctionModel.make_stage(
-        bands = ["u", "g", "r", "i", "z", "y"],
-        redshift_col='redshift',
+        bands=["u", "g", "r", "i", "z", "y"],
+        redshift_col="redshift",
         compute_uv_slope=compute_uv_slope,
         optical_depth_interpolator=optical_depth_interpolator,
     )
@@ -482,6 +544,4 @@ def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
     # check data has the right shape:
     assert outputs.shape[0] == data.data.shape[0]
     # check output u band mag is >= input u-band mag:
-    assert ((outputs["u"] - data.data["u"])>=0).all()
-    
-    
+    assert ((outputs["u"] - data.data["u"]) >= 0).all()

@@ -13,6 +13,7 @@ class SpecSelection(Selector):
     """The super class of spectroscopic selections."""
 
     name = "SpecSelection"
+    # entrypoint_function = "__call__"  # the user-facing science function for this class
     config_options = Selector.config_options.copy()
     config_options.update(
         N_tot=Param(int, 10000, msg="Number of selected sources"),
@@ -158,6 +159,7 @@ class SpecSelection_GAMA(SpecSelection):
     """
 
     name = "SpecSelection_GAMA"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def selection(self, data):
         """GAMA selection function."""
@@ -186,6 +188,7 @@ class SpecSelection_BOSS(SpecSelection):
     """
 
     name = "SpecSelection_BOSS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def selection(self, data):
         """The BOSS selection function."""
@@ -246,6 +249,7 @@ class SpecSelection_DEEP2(SpecSelection):
     """
 
     name = "SpecSelection_DEEP2"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
@@ -333,6 +337,7 @@ class SpecSelection_VVDSf02(SpecSelection):
     """
 
     name = "SpecSelection_VVDSf02"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def photometryCut(self, data):
         """Photometric cut of VVDS 2h-field based on LeFèvre+05.
@@ -444,6 +449,7 @@ class SpecSelection_zCOSMOS(SpecSelection):
     """
 
     name = "SpecSelection_zCOSMOS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def photometryCut(self, data):
         """Photometry cut for zCOSMOS based on Lilly+09.
@@ -505,6 +511,7 @@ class SpecSelection_HSC(SpecSelection):
     """
 
     name = "SpecSelection_HSC"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def photometryCut(self, data):
         """HSC galaxies were binned in color magnitude space with i-band mag

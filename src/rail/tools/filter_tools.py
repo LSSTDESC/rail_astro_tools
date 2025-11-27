@@ -1,5 +1,6 @@
-import numpy as np
 import os
+
+import numpy as np
 
 
 def ccm_alam_over_ebv(wl):
@@ -14,8 +15,8 @@ def ccm_alam_over_ebv(wl):
     """
     # assume input is in angstroms, for microns, need to divide by 10^-4
     # ax and bx are computed in inverse microns
-    wl_micron = wl * 1.e-4
-    x = 1. / wl_micron
+    wl_micron = wl * 1.0e-4
+    x = 1.0 / wl_micron
     Rv = 3.1
 
     if x >= 0.3 and x <= 1.1:
@@ -23,8 +24,25 @@ def ccm_alam_over_ebv(wl):
         bx = -0.527 * np.power(x, 1.61)
     elif x > 1.1 and x <= 3.3:
         y = x - 1.82
-        ax = 1 + 0.17699 * y - 0.50447 * np.power(y, 2.0) - 0.02427 * np.power(y, 3.0) + 0.72085 * np.power(y, 4.0) + 0.01979 * np.power(y, 5.0) - 0.77530 * np.power(y, 6.0) + 0.32999 * np.power(y, 7.0)
-        bx = 1.41338 * y + 2.28305 * np.power(y, 2.0) + 1.07233 * np.power(y, 3.0) - 5.38434 * np.power(y, 4.0) - 0.62251 * np.power(y, 5.0) + 5.30260 * np.power(y, 6.0) - 2.09002 * np.power(y, 7.0)
+        ax = (
+            1
+            + 0.17699 * y
+            - 0.50447 * np.power(y, 2.0)
+            - 0.02427 * np.power(y, 3.0)
+            + 0.72085 * np.power(y, 4.0)
+            + 0.01979 * np.power(y, 5.0)
+            - 0.77530 * np.power(y, 6.0)
+            + 0.32999 * np.power(y, 7.0)
+        )
+        bx = (
+            1.41338 * y
+            + 2.28305 * np.power(y, 2.0)
+            + 1.07233 * np.power(y, 3.0)
+            - 5.38434 * np.power(y, 4.0)
+            - 0.62251 * np.power(y, 5.0)
+            + 5.30260 * np.power(y, 6.0)
+            - 2.09002 * np.power(y, 7.0)
+        )
     elif x > 3.3 and x <= 5.9:
         ax = 1.752 - 0.316 * x - 0.104 / ((x - 4.67) ** 2 + 0.341)
         bx = -3.090 + 1.825 * x + 1.206 / ((x - 4.62) ** 2 + 0.263)
@@ -52,12 +70,13 @@ def calc_lambda_effective_from_file(filepath):
         wl = data[:, 0]
         tr = data[:, 1]
     else:  # pragma: no cover
-        raise FileNotFoundError(f"cannot open {filepath} with numpy.loadtxt, make sure that the file is an ascii filter file")
+        raise FileNotFoundError(
+            f"cannot open {filepath} with numpy.loadtxt, make sure that the file is an ascii filter file"
+        )
     leff_t = np.sum(wl * tr) / np.sum(tr)
     return leff_t
 
 
 def calc_lambda_effective_from_arrays(wl, tr):
-    """Given arrays of wavelengths and transmission, compute the effective wavelength
-    """
+    """Given arrays of wavelengths and transmission, compute the effective wavelength"""
     return np.sum(wl * tr) / np.sum(tr)

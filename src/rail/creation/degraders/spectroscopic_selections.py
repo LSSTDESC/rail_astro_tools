@@ -5,14 +5,12 @@ import os
 import numpy as np
 from ceci.config import StageParameter as Param
 from rail.creation.selector import Selector
-from scipy.interpolate import interp1d
 from rail.utils.path_utils import RAILDIR
+from scipy.interpolate import interp1d
 
 
 class SpecSelection(Selector):
-    """The super class of spectroscopic selections.
-
-    """
+    """The super class of spectroscopic selections."""
 
     name = "SpecSelection"
     config_options = Selector.config_options.copy()
@@ -26,9 +24,10 @@ class SpecSelection(Selector):
         ),
         success_rate_dir=Param(
             str,
-            os.path.join(RAILDIR,
-                         "rail/examples_data/creation_data/data/success_rate_data",
-                         ),
+            os.path.join(
+                RAILDIR,
+                "rail/examples_data/creation_data/data/success_rate_data",
+            ),
             msg="The path to the directory containing success rate files.",
         ),
         percentile_cut=Param(int, 100, msg="cut redshifts above this percentile"),
@@ -104,8 +103,7 @@ class SpecSelection(Selector):
             self.mask &= np.isfinite(data[colname])
 
     def downsampling_N_tot(self):
-        """Randomly sample down the objects to a given number of data objects.
-        """
+        """Randomly sample down the objects to a given number of data objects."""
         N_tot = self.config.N_tot
         N_selected = np.count_nonzero(self.mask)
         if N_tot > N_selected:
@@ -140,9 +138,10 @@ class SpecSelection(Selector):
             self.downsampling_N_tot()
 
         return self.mask
-#         data_selected = data.iloc[np.where(self.mask == 1)[0]]
 
-#         self.add_data("output", data_selected)
+    #         data_selected = data.iloc[np.where(self.mask == 1)[0]]
+
+    #         self.add_data("output", data_selected)
 
     def __repr__(self):
         """
@@ -161,7 +160,7 @@ class SpecSelection_GAMA(SpecSelection):
     name = "SpecSelection_GAMA"
 
     def selection(self, data):
-        """GAMA selection function. """
+        """GAMA selection function."""
         print("Applying the selection from GAMA survey...")
         self.mask *= data[self.config.colnames["r"]] < 19.87
 
@@ -229,7 +228,7 @@ class SpecSelection_BOSS(SpecSelection):
         self.mask *= low_z | cmass
 
     def __repr__(self):
-        """ Define how the model is represented and printed."""
+        """Define how the model is represented and printed."""
         # start message
         printMsg = "Applying the BOSS selection."
 

@@ -3,20 +3,18 @@
 
 # Prerquisites, os, and numpy
 import os
+
+import ceci
 import numpy as np
+from rail.core.stage import RailPipeline, RailStage
+from rail.core.utils import RAILDIR
+from rail.utils import catalog_utils
 
 # Various rail modules
 from rail.tools.photometry_tools import Dereddener, Reddener
 
-from rail.core.stage import RailStage, RailPipeline
-
-import ceci
-
-from rail.core.utils import RAILDIR
-from rail.utils import catalog_utils
-
-if 'PZ_DUSTMAP_DIR' not in os.environ:
-    os.environ['PZ_DUSTMAP_DIR'] = '.'
+if "PZ_DUSTMAP_DIR" not in os.environ:
+    os.environ["PZ_DUSTMAP_DIR"] = "."
 
 dustmap_dir = os.path.expandvars("${PZ_DUSTMAP_DIR}")
 
@@ -33,22 +31,21 @@ ERROR_MODELS = dict(
             hdf5_groupname='',
         )
     ),
-    #roman = dict(
+    # roman = dict(
     #    ErrorModel='RomanErrorModel',
     #    Module='rail.creation.degraders.photometric_errors',
     #    Bands=['Y', 'J', 'H', 'F'],
-    #),
-    #euclid = dict(
+    # ),
+    # euclid = dict(
     #    ErrorModel='EuclidErrorModel',
     #    Module='rail.creation.degraders.photometric_errors',
-    #),
+    # ),
 )
-
 
 
 class ApplyPhotErrorsPipeline(RailPipeline):
 
-    default_input_dict = dict(input='dummy.in')
+    default_input_dict = dict(input="dummy.in")
 
     def __init__(
         self,
@@ -71,14 +68,16 @@ class ApplyPhotErrorsPipeline(RailPipeline):
         previous_stage = self.reddener
         full_rename_dict = catalog_utils.get_active_tag().band_name_dict()
         for key, val in error_models.items():
-            error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
-            if 'Bands' in val:
-                rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
+            error_model_class = ceci.PipelineStage.get_stage(
+                val["ErrorModel"], val["Module"]
+            )
+            if "Bands" in val:
+                rename_dict = {band_: full_rename_dict[band_] for band_ in val["Bands"]}
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
             overrides = val.get('Overrides', {})
             the_error_model = error_model_class.make_and_connect(
-                name=f'error_model_{key}',
+                name=f"error_model_{key}",
                 connections=dict(input=previous_stage.io.output),
                 renameDict=rename_dict,
                 **overrides,

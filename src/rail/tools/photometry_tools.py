@@ -359,7 +359,7 @@ class LSSTFluxToMagConverter(RailStage):
 
     config_options = RailStage.config_options.copy()
     config_options.update(
-        bands=Param(str, default='ugrizy', msg="Names of the bands"),
+        bands=Param(list, default=['u', 'g', 'r', 'i', 'z', 'y'], msg="Names of the bands"),
         flux_name=Param(str, default="{band}_gaap1p0Flux", msg="Template for band names"),
         flux_err_name=Param(str, default="{band}_gaap1p0FluxErr", msg="Template for band error column names"),
         mag_name=Param(str, default="mag_{band}_lsst", msg="Template for magnitude column names"),

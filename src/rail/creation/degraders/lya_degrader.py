@@ -30,6 +30,7 @@ class IGMExtinctionModel(Noisifier):
     """
 
     name = "IGMExtinctionModel"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
     config_options = Noisifier.config_options.copy()
     config_options.update(
         data_path=Param(

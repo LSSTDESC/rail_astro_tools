@@ -51,6 +51,7 @@ class GridSelection(Selector):
     )
 
     name = "GridSelection"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
     config_options = Selector.config_options.copy()
     config_options.update(
         color_redshift_cut=Param(bool, True, msg="using color-based redshift cut"),

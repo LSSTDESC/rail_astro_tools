@@ -73,6 +73,7 @@ class PhotometryManipulator(RailStage, ABC):
     """
 
     name = "PhotometryManipulator"
+    entrypoint_function = "compute"  # the user-facing science function for this class
     config_options = RailStage.config_options.copy()
     config_options.update(
         value_columns=Param(
@@ -187,6 +188,7 @@ class HyperbolicSmoothing(PhotometryManipulator):
     """
 
     name = "HyperbolicSmoothing"
+    entrypoint_function = "compute"  # the user-facing science function for this class
     config_options = PhotometryManipulator.config_options.copy()
     inputs = [("input", PqHandle)]
     outputs = [("parameters", PqHandle)]
@@ -258,6 +260,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
     """
 
     name = "HyperbolicMagnitudes"
+    entrypoint_function = "compute"  # the user-facing science function for this class
     config_options = PhotometryManipulator.config_options.copy()
     inputs = [("input", PqHandle), ("parameters", PqHandle)]
     outputs = [("output", PqHandle)]
@@ -375,6 +378,7 @@ class LSSTFluxToMagConverter(RailStage):
     """
 
     name = "LSSTFluxToMagConverter"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     config_options = RailStage.config_options.copy()
     config_options.update(
@@ -445,6 +449,7 @@ class DustMapBase(RailStage):
     """
 
     name = "DustMapBase"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     config_options = RailStage.config_options.copy()
     config_options.update(
@@ -545,6 +550,7 @@ class Dereddener(DustMapBase):
     """Utility stage that does dereddening"""
 
     name = "Dereddener"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
         return mag_vals - ebvvec * band_a_env
@@ -554,6 +560,7 @@ class Reddener(DustMapBase):
     """Utility stage that does reddening"""
 
     name = "Reddener"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
         return mag_vals + ebvvec * band_a_env

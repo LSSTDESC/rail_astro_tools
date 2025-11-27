@@ -56,6 +56,7 @@ class ObsCondition(Noisifier):
     """
 
     name = "ObsCondition"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
     config_options = Noisifier.config_options.copy()
     config_options.update(
         nside=Param(

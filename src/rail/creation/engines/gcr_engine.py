@@ -20,6 +20,7 @@ class GCRCreator(Creator):
     """
 
     name = "GCRLoader"
+    entrypoint_function = "sample"  # the user-facing science function for this class
     outputs = [("output", PqHandle)]
 
     config_options = Creator.config_options.copy()

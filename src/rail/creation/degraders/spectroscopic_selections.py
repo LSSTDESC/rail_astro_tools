@@ -242,6 +242,90 @@ class SpecSelection_BOSS(SpecSelection):
         return printMsg
 
 
+class SpecSelection_DEEP2_LSST(SpecSelection):
+    """The class of spectroscopic selections with DEEP2.
+
+    Approximate Rubin->CFHT12K transforms based off of
+    CWWSB SED colors
+
+    B = g + 0.35 * (g-r)
+    R = r - 0.3 * (r-i)
+    I = i - 0.5 * (r-i)
+
+    transform the cuts accordingly
+
+    Also, original has
+    B-R < 0.5
+    modify to
+    B-R < 0.33 to exclude a few more low-z galaxies
+    leave speczSuccess unchanged from original implementation
+
+    """
+
+    name = "SpecSelection_DEEP2_LSST"
+
+    def photometryCut(self, data):
+        """Applies DEEP2 photometric cut based on Newman+13.
+
+        This modified selection gives the best match to the data n(z) with its
+        cut at z~0.75 and the B-R/R-I distribution (Newman+13, Fig. 12).
+
+        Notes
+        -----
+        We cannot apply the surface brightness cut and do not apply the Gaussian
+        weighted sampling near the original colour cuts.
+        """
+        gr = data[self.config.colnames['g']] - data[self.config.colnames['r']]
+        ri = data[self.config.colnames['r']] - data[self.config.colnames['i']]
+        B = data[self.config.colnames['g']] + 0.35 * gr
+        R = data[self.config.colnames['r']] - 0.30 * ri
+        I = data[self.config.colnames['i']] - 0.50 * ri
+
+        mask = np.logical_and(R > 18.5, np.logical_and(R < 24.1,
+                                                       np.logical_or(B - R < 2.45 * (R - I) - 0.2976,
+                                                                     np.logical_or(R - I > 1.1, B - R < 0.33))))
+
+        # update the internal state
+        self.mask &= mask
+
+    def speczSuccess(self, data):
+        """Spec-z success rate as function of r_AB for Q>=3 read of Figure 13 in
+        Newman+13 for DEEP2 fields 2-4. Values are binned in steps of 0.2 mag
+        with the first and last bin centered on 19 and 24.
+        """
+        success_R_bins = np.arange(18.9, 24.1 + 0.01, 0.2)
+        success_R_centers = (success_R_bins[1:] + success_R_bins[:-1]) / 2.0
+        # paper has given 1 - [sucess rate] in the histogram
+        success_rate_dir = self.config.success_rate_dir
+        success_R_rate = np.loadtxt(os.path.join(success_rate_dir, "DEEP2_success.txt"))
+        # interpolate the success rate as probability of being selected with
+        # the probability at R > 24.1 being 0
+        p_success_R = interp1d(
+            success_R_centers,
+            success_R_rate,
+            kind="quadratic",
+            bounds_error=False,
+            fill_value=(success_R_rate[0], 0.0),
+        )
+        # Randomly sample objects according to their success rate
+        random_draw = self.rng.random(len(data))
+        mask = random_draw < p_success_R(data[self.config.colnames["r"]])
+        # update the internal state
+        self.mask &= mask
+
+    def selection(self, data):
+        """DEEP2 selection function."""
+        self.photometryCut(data)
+        self.speczSuccess(data)
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        # start message
+        printMsg = "Applying the DEEP2_LSST selection."
+
+        return printMsg
+
+
 class SpecSelection_DEEP2(SpecSelection):
     """The class of spectroscopic selections with DEEP2.
 

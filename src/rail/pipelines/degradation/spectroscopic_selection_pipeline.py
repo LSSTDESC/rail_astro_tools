@@ -11,7 +11,7 @@ from rail.core.stage import RailStage, RailPipeline
 
 import ceci
 
-from rail.utils.catalog_utils import CatalogConfigBase
+from rail.utils import catalog_utils
 from rail.core.utils import RAILDIR
 
 SELECTORS = dict(

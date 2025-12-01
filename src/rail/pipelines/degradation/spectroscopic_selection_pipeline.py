@@ -60,8 +60,10 @@ class SpectroscopicSelectionPipeline(RailPipeline):
 
         config_pars = CommonConfigParams.copy()
 
-        colnames = catalog_utils.get_active_tag().band_name_dict().copy()
-        colnames['redshift'] = active_catalog.redshift_col
+        active_catalog_tag = catalog_utils.get_active_tag()
+        
+        colnames = active_catalog_tag.band_name_dict().copy()
+        colnames['redshift'] = active_catalog_tag.config.redshift_col
         config_pars['colnames'] = colnames
         
         for key, val in selectors.items():

@@ -1,5 +1,6 @@
 import os
 from rail.utils.testing_utils import build_and_read_pipeline
+from rail.utils import catalog_utils
 
 import pytest
 
@@ -16,5 +17,6 @@ import pytest
         ('rail.pipelines.degradation.truth_to_observed.TruthToObservedPipeline', {'blending':True, 'parallel':True}),
     ]
 )
-def test_build_and_read_pipeline(pipeline_class, options):
+def test_build_and_read_pipeline(pipeline_class, options):    
+    catalog_utils.apply_defaults('com_cam')
     build_and_read_pipeline(pipeline_class, **options)

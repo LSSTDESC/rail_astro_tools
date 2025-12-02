@@ -184,6 +184,12 @@ def test_SpecSelection(data):
 
     os.remove(degrader_DEEP2.get_output(degrader_DEEP2.get_aliased_tag("output"), final_name=True))
 
+    degrader_DEEP2_LSST = SpecSelection_DEEP2_LSST.make_stage()
+    degrader_DEEP2_LSST(data)
+    degrader_DEEP2_LSST.__repr__()
+
+    os.remove(degrader_DEEP2_LSST.get_output(degrader_DEEP2_LSST.get_aliased_tag("output"), final_name=True))
+
     degrader_VVDSf02 = SpecSelection_VVDSf02.make_stage()
     degrader_VVDSf02(data)
     degrader_VVDSf02.__repr__()

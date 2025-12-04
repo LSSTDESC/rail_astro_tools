@@ -18,6 +18,8 @@ from rail.core.data import (
     TableHandle,
 )
 from rail.core.stage import RailStage
+from rail.tools.photometry_tools import HyperbolicMagnitudes, HyperbolicSmoothing, PhotometryManipulator, LSSTFluxToMagConverter, Dereddener, Reddener
+from rail.tools.catalog_tools import MajorEllipticityToAB, SizeEllipticityToAB, BulgeDiscSizeEllipticityToAB, MomentsToAB
 from rail.utils.path_utils import RAILDIR, find_rail_file
 
 import rail
@@ -262,3 +264,58 @@ def test_HyperbolicMagnitudes(
         hypmag._check_filters(smoothing)
 
     os.remove(f"{handle_name}_{stage_name}.pq")
+
+
+def test_MajorEllipticityToAB():
+    # make fake data for testing
+    DS = RailStage.data_store
+    DS.clear()
+    DS.__class__.allow_overwrite = False
+    dummy_data = pd.DataFrame(dict(size=[1, 2, 3], ellipticity=[1, 0.5, 0]))
+    config = dict(size_column="size", ellipticity_columns="ellipticity")
+    inst = MajorEllipticityToAB.make_stage(name="catalog_manipulator", **config, to_arcsec=True)
+    inst.compute(dummy_data)
+    output = inst.get_handle("output").data
+    assert len(output.columns)-2 == len(dummy_data.columns)
+    stage_name = "catalog_manipulator"
+    os.remove(f"output_{stage_name}.pq")
+
+
+def test_SizeEllipticityToAB():
+    DS = RailStage.data_store
+    DS.clear()
+    DS.__class__.allow_overwrite = False
+    dummy_data = pd.DataFrame(dict(size=[1, 2, 3], ellipticity=[1, 0.5, 0]))
+    config = dict(size_column="size", ellipticity_columns="ellipticity")
+    inst = SizeEllipticityToAB.make_stage(name="catalog_manipulator", **config, to_arcsec=True)
+    inst.compute(dummy_data)
+    output = inst.get_handle("output").data
+    assert len(output.columns)-2 == len(dummy_data.columns)
+    stage_name = "catalog_manipulator"
+    os.remove(f"output_{stage_name}.pq")
+
+
+def test_BulgeDiscSizeEllipticityToAB():
+    DS = RailStage.data_store
+    DS.clear()
+    DS.__class__.allow_overwrite = False
+    dummy_data = pd.DataFrame(dict(size_bulge_true=[1, 2, 0.5], size_disk_true=[0.5,0.5,0.5],
+                                   bulge_to_total_ratio=[0.2,0.4,0.5], ellipticity_true=[0.7,0.5,0]))
+    inst = BulgeDiscSizeEllipticityToAB.make_stage(name="catalog_manipulator", to_arcsec=False)
+    inst.compute(dummy_data)
+    output = inst.get_handle("output").data
+    assert len(output.columns)-2 == len(dummy_data.columns)
+    stage_name = "catalog_manipulator"
+    os.remove(f"output_{stage_name}.pq")
+
+def test_MomentsToAB():
+    DS = RailStage.data_store
+    DS.clear()
+    DS.__class__.allow_overwrite = False
+    dummy_data = pd.DataFrame(dict(shape_xx=[0.2, 0.2, 0.3], shape_xy=[0.1, 0.0, 0.1], shape_yy=[0.4,0.5,0.1]))
+    inst = MomentsToAB.make_stage(name="catalog_manipulator", to_arcsec=True)
+    inst.compute(dummy_data)
+    output = inst.get_handle("output").data
+    assert len(output.columns)-2 == len(dummy_data.columns)
+    stage_name = "catalog_manipulator"
+    os.remove(f"output_{stage_name}.pq")

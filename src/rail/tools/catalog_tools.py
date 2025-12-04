@@ -23,7 +23,7 @@ class CatalogManipulator(RailStage, ABC):
     Subclasses must implement the run() and compute() method.
     """
 
-    name = 'GalSizeManipulator'
+    name = 'CatalogManipulator'
     config_options = RailStage.config_options.copy()
     config_options.update(
         major_columns=Param(
@@ -63,9 +63,10 @@ class CatalogManipulator(RailStage, ABC):
         """
         input_data = self.get_data('input', allow_missing=True)
         a, b = self._get_AB(input_data)
-        output = pd.DataFrame(index=input_data.index)
+        output = {}
         output[self.major_columns] = a
         output[self.minor_columns] = b
+        output = pd.DataFrame(output, index=input_data.index)
         if self.to_arcsec == True:
             output[self.major_columns] *= self.arcsec_per_pix
             output[self.minor_columns] *= self.arcsec_per_pix
@@ -141,7 +142,7 @@ class SizeEllipticityToAB(CatalogManipulator):
         e = input_data[self.config.ellipticity_column]
         q = (1 - e)/(1 + e)
         b = np.sqrt(size**2*q)
-        a = size**2/bi
+        a = size**2/b
         return a, b
 
 class BulgeDiscSizeEllipticityToAB(CatalogManipulator):
@@ -175,7 +176,7 @@ class BulgeDiscSizeEllipticityToAB(CatalogManipulator):
         e = input_data[self.config.ellipticity_column]
         q = (1 - e)/(1 + e)
         b = np.sqrt(size**2*q)
-        a = size**2/bi
+        a = size**2/b
         return a, b
 
 class MomentsToAB(CatalogManipulator):

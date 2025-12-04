@@ -51,7 +51,7 @@ class CatalogManipulator(RailStage, ABC):
         self.to_arcsec = self.config.to_arcsec
 
     @abstractmethod
-    def _get_AB(self, input_data):
+    def _get_AB(self, input_data): # pragma: no cover
         """
         Implmenet conversion code from other size information to semi-major/minor axes.
         """

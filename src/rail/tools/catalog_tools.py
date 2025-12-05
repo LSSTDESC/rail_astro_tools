@@ -15,6 +15,29 @@ from rail.core.common_params import SHARED_PARAMS
 # default pixel size for lsst
 ARCSEC_PER_PIX = 0.2
 
+# conversion functions
+def compute_AB_from_maj_ellip(size, e):
+    q = (1 - e)/(1 + e)
+    a = size
+    b = a*q
+    return a, b
+
+def compute_AB_from_size_ellip(size, e):
+    q = (1 - e)/(1 + e)
+    b = np.sqrt(size**2*q)
+    a = size**2/b
+    return a, b
+
+def compute_AB_from_moments(xx,xy,yy):
+    xx_p_yy = xx + yy
+    xx_m_yy = xx - yy
+    t = np.sqrt(xx_m_yy * xx_m_yy + 4 * xy * xy)
+    a = np.sqrt(0.5 * (xx_p_yy + t))
+    b = np.sqrt(0.5 * (xx_p_yy - t))
+    #theta = 0.5 * np.atan(2.0 * xy/xx_m_yy)
+    return a, b
+
+
 class CatalogManipulator(RailStage, ABC):
     """
     Base class to perform opertations on catalog size columns. A table with input size-related columns is
@@ -114,10 +137,7 @@ class MajorEllipticityToAB(CatalogManipulator):
     def _get_AB(self, input_data):
         size = input_data[self.config.size_column]
         e = input_data[self.config.ellipticity_column]
-        q = (1 - e)/(1 + e)
-        a = size
-        b = a*q
-        return a, b
+        return compute_AB_from_maj_ellip(size, e)
 
 class SizeEllipticityToAB(CatalogManipulator):
     """
@@ -140,10 +160,7 @@ class SizeEllipticityToAB(CatalogManipulator):
     def _get_AB(self, input_data):
         size = input_data[self.config.size_column]
         e = input_data[self.config.ellipticity_column]
-        q = (1 - e)/(1 + e)
-        b = np.sqrt(size**2*q)
-        a = size**2/b
-        return a, b
+        return compute_AB_from_size_ellip(size, e)
 
 class BulgeDiscSizeEllipticityToAB(CatalogManipulator):
     """
@@ -174,10 +191,7 @@ class BulgeDiscSizeEllipticityToAB(CatalogManipulator):
         f=input_data[self.config.bulge_to_total_ratio_colum]
         size=input_data[self.config.bulge_size_column]*f + input_data[self.config.disk_size_column]*(1-f)
         e = input_data[self.config.ellipticity_column]
-        q = (1 - e)/(1 + e)
-        b = np.sqrt(size**2*q)
-        a = size**2/b
-        return a, b
+        return compute_AB_from_size_ellip(size, e)
 
 class MomentsToAB(CatalogManipulator):
     """
@@ -204,13 +218,7 @@ class MomentsToAB(CatalogManipulator):
         xx = input_data[self.config.xx_column]
         xy = input_data[self.config.xy_column]
         yy = input_data[self.config.yy_column]
-        xx_p_yy = xx + yy
-        xx_m_yy = xx - yy
-        t = np.sqrt(xx_m_yy * xx_m_yy + 4 * xy * xy)
-        a = np.sqrt(0.5 * (xx_p_yy + t))
-        b = np.sqrt(0.5 * (xx_p_yy - t))
-        #theta = 0.5 * np.atan(2.0 * xy/xx_m_yy)
-        return a, b
+        return compute_AB_from_moments(xx,xy,yy)
 
 
 

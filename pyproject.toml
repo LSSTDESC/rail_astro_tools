@@ -67,6 +67,7 @@ disable = [
     "duplicate-code",
     "use-dict-literal",
     "broad-exception-caught",
+    "unused-argument",                # need extra **kwargs in some places
 ]
 max-line-length = 110
 max-locals = 50

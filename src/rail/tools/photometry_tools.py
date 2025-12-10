@@ -191,6 +191,7 @@ class HyperbolicSmoothing(PhotometryManipulator):
 
     name = "HyperbolicSmoothing"
     entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "hyperbolic_smoothing"
     config_options = PhotometryManipulator.config_options.copy()
     inputs = [("input", PqHandle)]
     outputs = [("parameters", PqHandle)]
@@ -263,6 +264,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
 
     name = "HyperbolicMagnitudes"
     entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "hyperbolic_magnitudes"
     config_options = PhotometryManipulator.config_options.copy()
     inputs = [("input", PqHandle), ("parameters", PqHandle)]
     outputs = [("output", PqHandle)]
@@ -381,6 +383,7 @@ class LSSTFluxToMagConverter(RailStage):
 
     name = "LSSTFluxToMagConverter"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "lsst_flux_to_mag_converter"
 
     config_options = RailStage.config_options.copy()
     config_options.update(
@@ -464,6 +467,7 @@ class DustMapBase(RailStage):
 
     name = "DustMapBase"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "dust_map_base"
 
     config_options = RailStage.config_options.copy()
     config_options.update(
@@ -565,6 +569,7 @@ class Dereddener(DustMapBase):
 
     name = "Dereddener"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "dereddener"
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
         return mag_vals - ebvvec * band_a_env
@@ -575,6 +580,7 @@ class Reddener(DustMapBase):
 
     name = "Reddener"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "reddener"
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
         return mag_vals + ebvvec * band_a_env

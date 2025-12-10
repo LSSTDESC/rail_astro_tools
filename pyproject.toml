@@ -56,7 +56,8 @@ addopts   = ["--cov=rail", "--cov-report=html"]
 [tool.pylint]
 disable = [
     "abstract-method",
-    "arguments-differ",           # let child classes override methods with extra args
+    "arguments-differ",               # let child classes override methods with extra args
+    "attribute-defined-outside-init",
     "invalid-name",
     "too-many-statements",
     "missing-module-docstring",

@@ -13,8 +13,11 @@ from rail.utils.path_utils import find_rail_file
 
 class GridSelection(Selector):
     """
-    Uses the ratio of HSC spectroscpic galaxies to photometric galaxies to portion a sample into training and application samples. Option to implement a color-based redshift cut off in each pixel.
-    Option of further degrading the training sample by limiting it to galaxies less than a redshift cutoff by specifying redshift_cut.
+    Uses the ratio of HSC spectroscpic galaxies to photometric galaxies to portion a
+    sample into training and application samples. Option to implement a color-based
+    redshift cut off in each pixel.
+    Option of further degrading the training sample by limiting it to galaxies less than
+    a redshift cutoff by specifying redshift_cut.
 
     .. code-block:: text
 
@@ -52,6 +55,7 @@ class GridSelection(Selector):
 
     name = "GridSelection"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "grid_selection"
     config_options = Selector.config_options.copy()
     config_options.update(
         color_redshift_cut=Param(bool, True, msg="using color-based redshift cut"),

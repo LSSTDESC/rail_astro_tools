@@ -23,6 +23,7 @@ class UnrecBlModel(Degrader):
 
     name = "UnrecBlModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "unrec_bl_model"
     config_options = Degrader.config_options.copy()
     config_options.update(
         ra_label=Param(str, "ra", msg="ra column name"),

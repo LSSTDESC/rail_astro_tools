@@ -29,6 +29,7 @@ class LineConfusion(Noisifier):
 
     name = "LineConfusion"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "line_confusion"
     config_options = Noisifier.config_options.copy()
     config_options.update(
         true_wavelen=Param(
@@ -111,7 +112,8 @@ class InvRedshiftIncompleteness(Selector):
     """
 
     name = "InvRedshiftIncompleteness"
-    # entrypoint_function = "__call__"  # the user-facing science function for this class
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "inv_redshift_incompleteness"
     config_options = Selector.config_options.copy()
     config_options.update(
         pivot_redshift=Param(

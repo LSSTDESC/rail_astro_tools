@@ -41,6 +41,7 @@ class PhotoErrorModel(Noisifier):
 
     name = "PhotoErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "photo_error_model"
 
     def set_params(self, peparams):
         """
@@ -120,6 +121,7 @@ class LSSTErrorModel(PhotoErrorModel):
 
     name = "LSSTErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "lsst_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -137,6 +139,7 @@ class RomanErrorModel(PhotoErrorModel):
 
     name = "RomanErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "roman_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -154,6 +157,7 @@ class RomanWideErrorModel(PhotoErrorModel):
 
     name = "RomanWideErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "roman_wide_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -171,6 +175,7 @@ class RomanMediumErrorModel(PhotoErrorModel):
 
     name = "RomanMediumErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "roman_medium_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -188,6 +193,7 @@ class RomanDeepErrorModel(PhotoErrorModel):
 
     name = "RomanDeepErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "roman_deep_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -205,6 +211,7 @@ class RomanUltraDeepErrorModel(PhotoErrorModel):
 
     name = "RomanUltraDeepErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "roman_ultra_deep_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -222,6 +229,7 @@ class EuclidErrorModel(PhotoErrorModel):
 
     name = "EuclidErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "euclid_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -239,6 +247,7 @@ class EuclidWideErrorModel(PhotoErrorModel):
 
     name = "EuclidWideErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "euclid_wide_error_model"
 
     def __init__(self, args, **kwargs):
 
@@ -256,6 +265,7 @@ class EuclidDeepErrorModel(PhotoErrorModel):
 
     name = "EuclidDeepErrorModel"
     entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "euclid_deep_error_model"
 
     def __init__(self, args, **kwargs):
 

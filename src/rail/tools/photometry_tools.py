@@ -233,7 +233,7 @@ class HyperbolicSmoothing(PhotometryManipulator):
         # store resulting smoothing parameters for next stage
         self.add_data("parameters", pd.concat(stats))
 
-    def compute(self, data):
+    def compute(self, data, **kwargs):
         """
         Main method to call. Computes the set of smoothing parameters (b) for an input catalogue
         with classical photometry and their respective errors. These parameters are required by the
@@ -346,7 +346,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
         # store results
         self.add_data("output", output)
 
-    def compute(self, data, parameters):
+    def compute(self, data, parameters, **kwargs):
         """
         Main method to call. Outputs hyperbolic magnitudes compuated from a set of smoothing
         parameters and input catalogue with classical magitudes and their respective errors.
@@ -428,7 +428,7 @@ class LSSTFluxToMagConverter(RailStage):
             out_data[key] = data[val].values
         self.add_data("output", out_data)
 
-    def __call__(self, data) -> PqHandle:
+    def __call__(self, data, **kwargs) -> PqHandle:
         """Return a converted table
 
         Parameters
@@ -534,7 +534,7 @@ class DustMapBase(RailStage):
         out_data_pd = pd.DataFrame(out_data)
         self.add_data("output", out_data_pd)
 
-    def __call__(self, data) -> PqHandle:
+    def __call__(self, data, **kwargs) -> PqHandle:
         """Return a converted table
 
         Parameters

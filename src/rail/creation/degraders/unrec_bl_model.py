@@ -53,7 +53,7 @@ class UnrecBlModel(Degrader):
         "z_stdev",
     ]
 
-    def __call__(self, sample, seed: int = None):
+    def __call__(self, sample, seed: int = None) -> dict[str, PqHandle]:
         """The main interface method for ``Degrader``.
 
         Applies degradation.
@@ -79,7 +79,7 @@ class UnrecBlModel(Degrader):
 
         Returns
         -------
-        output_data : PqHandle
+        dict[str, PqHandle]
             A handle giving access to a table with degraded sample
         """
         if seed is not None:

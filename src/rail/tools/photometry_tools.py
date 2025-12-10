@@ -245,7 +245,7 @@ class HyperbolicSmoothing(PhotometryManipulator):
 
         Returns
         -------
-        parameters : `PqHandle`
+        PqHandle
             Table with smoothing parameters per photometric band and additional meta data.
         """
         self.set_data("input", data)
@@ -437,7 +437,7 @@ class LSSTFluxToMagConverter(RailStage):
             out_data[key] = data[val].values
         self.add_data("output", out_data)
 
-    def __call__(self, data):
+    def __call__(self, data) -> PqHandle:
         """Return a converted table
 
         Parameters
@@ -447,7 +447,7 @@ class LSSTFluxToMagConverter(RailStage):
 
         Returns
         -------
-        out_data : table-like
+        PqHandle
             The converted version of the table
         """
         self.set_data("input", data)
@@ -542,7 +542,7 @@ class DustMapBase(RailStage):
         out_data_pd = pd.DataFrame(out_data)
         self.add_data("output", out_data_pd)
 
-    def __call__(self, data):
+    def __call__(self, data) -> PqHandle:
         """Return a converted table
 
         Parameters
@@ -552,7 +552,7 @@ class DustMapBase(RailStage):
 
         Returns
         -------
-        out_data : table-like
+        PqHandle
             The converted version of the table
         """
         self.set_data("input", data)

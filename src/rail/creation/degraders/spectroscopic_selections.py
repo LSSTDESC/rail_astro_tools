@@ -39,9 +39,10 @@ class SpecSelection(Selector):
                 **{band: "mag_" + band + "_lsst" for band in "ugrizy"},
                 **{"redshift": "redshift"},
             },
-            msg="a dictionary that includes necessary columns\
-                         (magnitudes, colors and redshift) for selection. For magnitudes, the keys are ugrizy; for colors, the keys are, \
-                         for example, gr standing for g-r; for redshift, the key is 'redshift'",
+            msg="""a dictionary that includes necessary columns (magnitudes, colors and
+                redshift) for selection. For magnitudes, the keys are ugrizy; for
+                colors, the keys are, for example, gr standing for g-r; for redshift,
+                the key is 'redshift'""",
         ),
         random_seed=Param(int, 42, msg="random seed for reproducibility"),
     )

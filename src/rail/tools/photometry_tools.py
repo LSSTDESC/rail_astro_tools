@@ -162,7 +162,7 @@ class PhotometryManipulator(RailStage, ABC):
         self.add_data("output", data)
 
     @abstractmethod
-    def compute(self, data):  # pragma: no cover
+    def compute(self, data) -> PqHandle:  # pragma: no cover
         """
         Main method to call.
 
@@ -173,7 +173,7 @@ class PhotometryManipulator(RailStage, ABC):
 
         Returns
         -------
-        output: `PqHandle`
+        PqHandle
             Output tabular data.
         """
         self.set_data("input", data)
@@ -233,7 +233,7 @@ class HyperbolicSmoothing(PhotometryManipulator):
         # store resulting smoothing parameters for next stage
         self.add_data("parameters", pd.concat(stats))
 
-    def compute(self, data, **kwargs):
+    def compute(self, data, **kwargs) -> PqHandle:
         """
         Main method to call. Computes the set of smoothing parameters (b) for an input catalogue
         with classical photometry and their respective errors. These parameters are required by the
@@ -346,7 +346,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
         # store results
         self.add_data("output", output)
 
-    def compute(self, data, parameters, **kwargs):
+    def compute(self, data, parameters, **kwargs) -> PqHandle:
         """
         Main method to call. Outputs hyperbolic magnitudes compuated from a set of smoothing
         parameters and input catalogue with classical magitudes and their respective errors.
@@ -362,7 +362,7 @@ class HyperbolicMagnitudes(PhotometryManipulator):
 
         Returns
         -------
-        output: `PqHandle`
+        PqHandle
             Output table containting hyperbolic magnitudes and their uncertainties. If the columns
             in the input table contain a prefix `mag_`, this output tabel will replace the prefix
             with `hyp_mag_`, otherwise the column names will be identical to the input table.

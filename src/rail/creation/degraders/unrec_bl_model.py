@@ -16,7 +16,8 @@ class UnrecBlModel(Degrader):
 
     Finding objects nearby each other. Merge them into one blended
     Use Friends of Friends for matching. May implement shape matching in the future.
-    Take avergaged Ra and Dec for blended source, and sum up fluxes in each band. May implement merged shapes in the future.
+    Take avergaged Ra and Dec for blended source, and sum up fluxes in each band. May
+    implement merged shapes in the future.
 
     """
 
@@ -124,7 +125,7 @@ class UnrecBlModel(Degrader):
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
         cols = (
             [ra_label, dec_label]
-            + [b for b in self.config.bands]
+            + list(self.config.bands)
             + [self.config.redshift_col]
             + self.blend_info_cols
         )

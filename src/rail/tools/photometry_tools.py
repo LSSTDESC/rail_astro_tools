@@ -12,7 +12,7 @@ import tables_io
 from astropy.coordinates import SkyCoord
 from ceci.config import StageParameter as Param
 from rail.core.common_params import SHARED_PARAMS
-from rail.core.data import Hdf5Handle, PqHandle
+from rail.core.data import PqHandle
 from rail.core.stage import RailStage
 
 dustmaps_config = tables_io.lazy_modules.lazyImport("dustmaps.config")
@@ -67,7 +67,9 @@ def _compute_flux_error(flux, magnitude_error):
 
 class PhotometryManipulator(RailStage, ABC):
     """
-    Base class to perform opertations on magnitudes. A table with input magnitudes and errors is processed and transformed into an output table with new magnitudes and errors.
+    Base class to perform opertations on magnitudes. A table with input magnitudes and
+    errors is processed and transformed into an output table with new magnitudes and
+    errors.
 
     Subclasses must implement the run() and compute() method.
     """
@@ -516,10 +518,10 @@ class DustMapBase(RailStage):
             band_mag_name_list.append(band_mag_name)
 
         # check if copy_all_cols set to true:
-        if self.config.copy_all_cols == False:  # pragma: no cover
+        if self.config.copy_all_cols is False:  # pragma: no cover
             for col_ in self.config.copy_cols:  # pragma: no cover
                 out_data[col_] = data[col_]
-        elif self.config.copy_all_cols == True:  # pragma: no cover
+        elif self.config.copy_all_cols is True:  # pragma: no cover
             for col_ in data:
                 # make sure we do not overwrite the photometry columns
                 if col_ not in band_mag_name_list:

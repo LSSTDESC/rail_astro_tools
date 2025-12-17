@@ -19,6 +19,8 @@ class UnrecBlModel(Degrader):
     Take avergaged Ra and Dec for blended source, and sum up fluxes in each band. May
     implement merged shapes in the future.
 
+    Requires gcc, which depending on your installation, may be difficult for the caller
+    (FoFCatalogMatching dependency fast3tree) to find. Conda-installed gcc seems to fix this.
     """
 
     name = "UnrecBlModel"

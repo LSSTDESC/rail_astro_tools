@@ -497,6 +497,7 @@ class DustMapBase(RailStage):
 
     def run(self):
         data = self.get_data("input", allow_missing=True)
+        self.fetch_map()
         out_data = {}
         coords = SkyCoord(
             np.array(data[self.config.ra_name]),

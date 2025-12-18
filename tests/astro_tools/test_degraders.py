@@ -215,13 +215,11 @@ def test_SpecSelection(data):
     degrader_DEEP2_LSST(data)
     degrader_DEEP2_LSST.__repr__()
 
-    os.remove(degrader_DEEP2_LSST.get_output(degrader_DEEP2_LSST.get_aliased_tag("output"), final_name=True))
-
-    degrader_DEEP2_LSST = SpecSelection_DEEP2_LSST.make_stage()
-    degrader_DEEP2_LSST(data)
-    degrader_DEEP2_LSST.__repr__()
-
-    os.remove(degrader_DEEP2_LSST.get_output(degrader_DEEP2_LSST.get_aliased_tag("output"), final_name=True))
+    os.remove(
+        degrader_DEEP2_LSST.get_output(
+            degrader_DEEP2_LSST.get_aliased_tag("output"), final_name=True
+        )
+    )
 
     degrader_VVDSf02 = SpecSelection_VVDSf02.make_stage()
     degrader_VVDSf02(data)
@@ -556,4 +554,4 @@ def test_lya_degrader(data, compute_uv_slope, optical_depth_interpolator):
     # check data has the right shape:
     assert outputs.shape[0] == data.data.shape[0]
     # check output u band mag is >= input u-band mag:
-    assert ((outputs["u"] - data.data["u"])>=0).all()
+    assert ((outputs["u"] - data.data["u"]) >= 0).all()

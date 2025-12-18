@@ -51,7 +51,7 @@ write_to = "src/rail/astro_tools/_version.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["--cov=rail", "--cov-report=html"]
+addopts   = ["--cov=rail", "--cov-report=html"]
 
 [tool.pylint]
 disable = [

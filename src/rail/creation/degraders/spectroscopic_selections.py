@@ -263,6 +263,8 @@ class SpecSelection_DEEP2_LSST(SpecSelection):
     """
 
     name = "SpecSelection_DEEP2_LSST"
+    interactive_function = "spec_selection_DEEP2_LSST"
+    entrypoint_function = "__call__"
 
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
@@ -275,15 +277,22 @@ class SpecSelection_DEEP2_LSST(SpecSelection):
         We cannot apply the surface brightness cut and do not apply the Gaussian
         weighted sampling near the original colour cuts.
         """
-        gr = data[self.config.colnames['g']] - data[self.config.colnames['r']]
-        ri = data[self.config.colnames['r']] - data[self.config.colnames['i']]
-        B = data[self.config.colnames['g']] + 0.35 * gr
-        R = data[self.config.colnames['r']] - 0.30 * ri
-        I = data[self.config.colnames['i']] - 0.50 * ri
+        gr = data[self.config.colnames["g"]] - data[self.config.colnames["r"]]
+        ri = data[self.config.colnames["r"]] - data[self.config.colnames["i"]]
+        B = data[self.config.colnames["g"]] + 0.35 * gr
+        R = data[self.config.colnames["r"]] - 0.30 * ri
+        I = data[self.config.colnames["i"]] - 0.50 * ri
 
-        mask = np.logical_and(R > 18.5, np.logical_and(R < 24.1,
-                                                       np.logical_or(B - R < 2.45 * (R - I) - 0.2976,
-                                                                     np.logical_or(R - I > 1.1, B - R < 0.33))))
+        mask = np.logical_and(
+            R > 18.5,
+            np.logical_and(
+                R < 24.1,
+                np.logical_or(
+                    B - R < 2.45 * (R - I) - 0.2976,
+                    np.logical_or(R - I > 1.1, B - R < 0.33),
+                ),
+            ),
+        )
 
         # update the internal state
         self.mask &= mask

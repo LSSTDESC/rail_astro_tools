@@ -17,7 +17,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "deprecated",
-    "pz-rail-base>=2.0.0",
+    "pz-rail-base>=2.0.0-dev",
     "numpy",
     "pandas>=2.2.2",
     "astropy",

@@ -52,9 +52,6 @@ class SpectroscopicSelectionPipeline(RailPipeline):
     def __init__(self, selectors=None):
         RailPipeline.__init__(self)
 
-        DS = RailStage.data_store
-        DS.__class__.allow_overwrite = True
-
         if selectors is None:
             selectors = SELECTORS.copy()
 

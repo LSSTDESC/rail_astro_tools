@@ -55,9 +55,6 @@ class ApplyPhotErrorsPipeline(RailPipeline):
     ):
         RailPipeline.__init__(self)
 
-        DS = RailStage.data_store
-        DS.__class__.allow_overwrite = True
-
         if error_models is None:
             error_models = ERROR_MODELS
 

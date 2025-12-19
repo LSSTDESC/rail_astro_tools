@@ -38,9 +38,6 @@ class TruthToObservedPipeline(RailPipeline):
     ):
         RailPipeline.__init__(self)
 
-        DS = RailStage.data_store
-        DS.__class__.allow_overwrite = True
-
         active_catalog_config = catalog_utils.get_active_tag()
         full_rename_dict = active_catalog_config.band_name_dict()
 

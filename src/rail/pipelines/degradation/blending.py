@@ -20,7 +20,4 @@ class BlendingPipeline(RailPipeline):
     def __init__(self):
         RailPipeline.__init__(self)
 
-        DS = RailStage.data_store
-        DS.__class__.allow_overwrite = True
-
         self.unrec_bl = UnrecBlModel.build()

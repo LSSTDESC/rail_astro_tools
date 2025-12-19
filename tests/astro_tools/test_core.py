@@ -1,26 +1,12 @@
 import os
-import pickle
 import tempfile
-from types import GeneratorType
 
 import numpy as np
 import pandas as pd
 import pytest
-from rail.core.common_params import SHARED_PARAMS, copy_param, set_param_default
-from rail.core.data import (
-    DataHandle,
-    DataStore,
-    FitsHandle,
-    Hdf5Handle,
-    ModelHandle,
-    PqHandle,
-    QPHandle,
-    TableHandle,
-)
-from rail.core.stage import RailStage
+import tables_io
 from rail.utils.path_utils import RAILDIR, find_rail_file
 
-import rail
 from rail.tools.catalog_tools import (
     BulgeDiscSizeEllipticityToAB,
     MajorEllipticityToAB,
@@ -48,27 +34,20 @@ from rail.tools.photometry_tools import (
 
 
 def test_flux2mag():
-    DS = RailStage.data_store
-    DS.clear()
-
     testFile = find_rail_file(
         os.path.join("examples_data", "testdata", "rubin_dm_dc2_example2.pq")
     )
-    test_data = DS.read_file("test_data", TableHandle, testFile)
-
+    test_data = tables_io.read(testFile)
     fluxToMag = LSSTFluxToMagConverter.make_stage(name="flux2mag")
     out_data = fluxToMag(test_data)
 
 
 @pytest.mark.slow
 def test_dereddener():
-    DS = RailStage.data_store
-    DS.clear()
-
     testFile = find_rail_file(
         os.path.join("examples_data", "testdata", "rubin_dm_dc2_example2.pq")
     )
-    test_data = DS.read_file("test_data", TableHandle, testFile)
+    test_data = tables_io.read(testFile)
 
     fluxToMag = LSSTFluxToMagConverter.make_stage(
         name="flux2mag", copy_cols=dict(ra="ra", dec="decl")
@@ -108,10 +87,6 @@ def hyperbolic_configuration():
 @pytest.fixture
 def load_result_smoothing():
     """load the smoothing parameters for an example patch of DC2"""
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
-
     testFile = os.path.join(
         RAILDIR,
         "rail",
@@ -120,14 +95,10 @@ def load_result_smoothing():
         "test_dc2_training_9816_smoothing_params.pq",
     )
 
-    return DS.read_file("test_data", TableHandle, testFile).data
+    return tables_io.read(testFile)
 
 
 def test_PhotometryManipulator(hyperbolic_configuration):
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
-
     # NOTE: the __init__ machinery of HyperbolicSmoothing is identical to PhotometryManipulator
     # and is used as substitute since PhotometryManipulator cannot be instantiated.
     n_filters = len(hyperbolic_configuration["value_columns"])
@@ -163,20 +134,12 @@ def test_PhotometryManipulator(hyperbolic_configuration):
 
 
 def test_HyperbolicSmoothing(hyperbolic_configuration):
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
-
-    test_data = DS.read_file(
-        "test_data",
-        TableHandle,
+    test_data = tables_io.read(
         os.path.join(
             RAILDIR, "rail", "examples_data", "testdata", "test_dc2_training_9816.pq"
         ),
-    ).data
-    result_smoothing = DS.read_file(
-        "result_smoothing",
-        TableHandle,
+    )
+    result_smoothing = tables_io.read(
         os.path.join(
             RAILDIR,
             "rail",
@@ -184,7 +147,7 @@ def test_HyperbolicSmoothing(hyperbolic_configuration):
             "testdata",
             "test_dc2_training_9816_smoothing_params.pq",
         ),
-    ).data
+    )
 
     stage_name, handle_name = "hyperbolic_smoothing", "parameters"
 
@@ -200,20 +163,12 @@ def test_HyperbolicSmoothing(hyperbolic_configuration):
 def test_HyperbolicMagnitudes(
     hyperbolic_configuration,
 ):
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
-
-    test_data = DS.read_file(
-        "test_data",
-        TableHandle,
+    test_data = tables_io.read(
         os.path.join(
             RAILDIR, "rail", "examples_data", "testdata", "test_dc2_training_9816.pq"
         ),
-    ).data
-    result_smoothing = DS.read_file(
-        "result_smoothing",
-        TableHandle,
+    )
+    result_smoothing = tables_io.read(
         os.path.join(
             RAILDIR,
             "rail",
@@ -221,10 +176,8 @@ def test_HyperbolicMagnitudes(
             "testdata",
             "test_dc2_training_9816_smoothing_params.pq",
         ),
-    ).data
-    result_hyperbolic = DS.read_file(
-        "result_hyperbolic",
-        TableHandle,
+    )
+    result_hyperbolic = tables_io.read(
         os.path.join(
             RAILDIR,
             "rail",
@@ -232,7 +185,7 @@ def test_HyperbolicMagnitudes(
             "testdata",
             "test_dc2_training_9816_hyperbolic.pq",
         ),
-    ).data
+    )
 
     stage_name, handle_name = "hyperbolic_magnitudes", "output"
 
@@ -272,9 +225,6 @@ def test_HyperbolicMagnitudes(
 
 def test_MajorEllipticityToAB():
     # make fake data for testing
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
     dummy_data = pd.DataFrame(dict(size=[1, 2, 3], ellipticity=[1, 0.5, 0]))
     config = dict(size_column="size", ellipticity_columns="ellipticity")
     inst = MajorEllipticityToAB.make_stage(
@@ -288,9 +238,6 @@ def test_MajorEllipticityToAB():
 
 
 def test_SizeEllipticityToAB():
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
     dummy_data = pd.DataFrame(dict(size=[1, 2, 3], ellipticity=[1, 0.5, 0]))
     config = dict(size_column="size", ellipticity_columns="ellipticity")
     inst = SizeEllipticityToAB.make_stage(
@@ -304,9 +251,6 @@ def test_SizeEllipticityToAB():
 
 
 def test_BulgeDiscSizeEllipticityToAB():
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
     dummy_data = pd.DataFrame(
         dict(
             size_bulge_true=[1, 2, 0.5],
@@ -326,9 +270,6 @@ def test_BulgeDiscSizeEllipticityToAB():
 
 
 def test_MomentsToAB():
-    DS = RailStage.data_store
-    DS.clear()
-    DS.__class__.allow_overwrite = False
     dummy_data = pd.DataFrame(
         dict(
             shape_xx=[0.2, 0.2, 0.3], shape_xy=[0.1, 0.0, 0.1], shape_yy=[0.4, 0.5, 0.1]

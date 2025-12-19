@@ -1,11 +1,10 @@
 import os
-from typing import Type
 
 import numpy as np
 import pandas as pd
 import pytest
 from photerr import LsstErrorModel as PhoterrErrorModel
-from rail.core.data import DATA_STORE, TableHandle
+from rail.core.data import TableHandle
 from rail.utils.path_utils import find_rail_file
 
 from rail.creation.degraders.grid_selection import GridSelection
@@ -25,9 +24,6 @@ from rail.tools.table_tools import ColumnMapper
 def data():
     """Some dummy data to use below."""
 
-    DS = DATA_STORE()
-    DS.__class__.allow_overwrite = True
-
     # generate random normal data
     rng = np.random.default_rng(0)
     x = rng.normal(loc=26, scale=1, size=(100, 7))
@@ -37,15 +33,12 @@ def data():
 
     # return data in handle wrapping a pandas DataFrame
     df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y"])
-    return DS.add_data("data", df, TableHandle, path="dummy.pd")
+    return TableHandle("data", df, path="dummy.pd")
 
 
 @pytest.fixture
 def data_forspec():
     """Some dummy data to use below."""
-
-    DS = DATA_STORE()
-    DS.__class__.allow_overwrite = True
 
     # generate random normal data
     rng = np.random.default_rng(0)
@@ -56,14 +49,11 @@ def data_forspec():
 
     # return data in handle wrapping a pandas DataFrame
     df = pd.DataFrame(x, columns=["redshift", "u", "g", "r", "i", "z", "y"])
-    return DS.add_data("data_forspec", df, TableHandle, path="dummy_forspec.pd")
+    return TableHandle("data_forspec", df, path="dummy_forspec.pd")
 
 
 @pytest.fixture
 def data_with_radec():
-    DS = DATA_STORE()
-    DS.__class__.allow_overwrite = True
-
     # generate random normal data
     rng = np.random.default_rng(0)
     x = rng.normal(loc=26, scale=1, size=(100, 7))
@@ -79,15 +69,12 @@ def data_with_radec():
     df = pd.DataFrame(
         x, columns=["redshift", "u", "g", "r", "i", "z", "y", "ra", "dec"]
     )
-    return DS.add_data("data_with_radec", df, TableHandle, path="dummy_with_radec.pd")
+    return TableHandle("data_with_radec", df, path="dummy_with_radec.pd")
 
 
 @pytest.fixture
 def data_for_bl():
     """Some dummy data to use below."""
-
-    DS = DATA_STORE()
-    DS.__class__.allow_overwrite = True
 
     # generate random normal data
     columns = ["ra", "dec", "u", "g", "r", "i", "z", "y", "redshift"]
@@ -101,7 +88,7 @@ def data_for_bl():
 
     # return data in handle wrapping a pandas DataFrame
     df = pd.DataFrame(x, columns=columns)
-    return DS.add_data("data_for_bl", df, TableHandle, path="dummy_for_bl.pd")
+    return TableHandle("data_for_bl", df, path="dummy_for_bl.pd")
 
 
 @pytest.mark.parametrize(

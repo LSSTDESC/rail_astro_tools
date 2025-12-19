@@ -2,13 +2,7 @@
 
 import os
 
-from rail.core.stage import RailStage
-
 from rail.creation.engines.gcr_engine import GCRCreator
-
-# Allow us to overwrite the data store
-DS = RailStage.data_store
-DS.__class__.allow_overwrite = True
 
 
 def test_GCRCreator():

@@ -78,4 +78,4 @@ class GCRCreator(Creator):
         cat = cat.sample(n=self.config.n_samples, random_state=self.config.seed)
         cat = cat[self.config.quantities]
 
-        self.add_data("output", cat)
+        self.set_data("output", cat)

@@ -8,16 +8,11 @@ import ceci
 import numpy as np
 from rail.core.stage import RailPipeline, RailStage
 from rail.core.utils import RAILDIR
+from rail.utils import catalog_utils
 from rail.utils.catalog_utils import CatalogConfigBase
 
 # Various rail modules
 
-from rail.core.stage import RailStage, RailPipeline
-
-import ceci
-
-from rail.utils import catalog_utils
-from rail.core.utils import RAILDIR
 
 SELECTORS = dict(
     GAMA=dict(
@@ -68,8 +63,8 @@ class SpectroscopicSelectionPipeline(RailPipeline):
         active_catalog_tag = catalog_utils.get_active_tag()
 
         colnames = active_catalog_tag.band_name_dict().copy()
-        colnames['redshift'] = active_catalog_tag.config.redshift_col
-        config_pars['colnames'] = colnames
+        colnames["redshift"] = active_catalog_tag.config.redshift_col
+        config_pars["colnames"] = colnames
 
         for key, val in selectors.items():
             the_class = ceci.PipelineStage.get_stage(val["Select"], val["Module"])

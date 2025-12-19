@@ -387,11 +387,25 @@ class LSSTFluxToMagConverter(RailStage):
 
     config_options = RailStage.config_options.copy()
     config_options.update(
-        bands=Param(list, default=['u', 'g', 'r', 'i', 'z', 'y'], msg="Names of the bands"),
-        flux_name=Param(str, default="{band}_gaap1p0Flux", msg="Template for band names"),
-        flux_err_name=Param(str, default="{band}_gaap1p0FluxErr", msg="Template for band error column names"),
-        mag_name=Param(str, default="mag_{band}_lsst", msg="Template for magnitude column names"),
-        mag_err_name=Param(str, default="mag_err_{band}_lsst", msg="Template for magnitude error column names"),
+        bands=Param(
+            list, default=["u", "g", "r", "i", "z", "y"], msg="Names of the bands"
+        ),
+        flux_name=Param(
+            str, default="{band}_gaap1p0Flux", msg="Template for band names"
+        ),
+        flux_err_name=Param(
+            str,
+            default="{band}_gaap1p0FluxErr",
+            msg="Template for band error column names",
+        ),
+        mag_name=Param(
+            str, default="mag_{band}_lsst", msg="Template for magnitude column names"
+        ),
+        mag_err_name=Param(
+            str,
+            default="mag_err_{band}_lsst",
+            msg="Template for magnitude error column names",
+        ),
         copy_cols=Param(dict, default={}, msg="Map of other columns to copy"),
         mag_offset=Param(float, default=31.4, msg="Magntidue offset value"),
     )

@@ -221,7 +221,9 @@ class ObsCondition(Noisifier):
 
                         # check if the paths exist
                         if isinstance(self.config["map_dict"][key], str):
-                            if not os.path.exists(os.path.expandvars(self.config["map_dict"][key])):
+                            if not os.path.exists(
+                                os.path.expandvars(self.config["map_dict"][key])
+                            ):
                                 raise ValueError(
                                     "The following file is not found: "
                                     + self.config["map_dict"][key]
@@ -253,7 +255,11 @@ class ObsCondition(Noisifier):
 
                             # check if the paths exist
                             if isinstance(self.config["map_dict"][key][band], str):
-                                if not os.path.exists(os.path.expandvars(self.config["map_dict"][key][band])):
+                                if not os.path.exists(
+                                    os.path.expandvars(
+                                        self.config["map_dict"][key][band]
+                                    )
+                                ):
                                     raise ValueError(
                                         "The following file is not found: "
                                         + self.config["map_dict"][key][band]
@@ -280,7 +286,9 @@ class ObsCondition(Noisifier):
 
         # Load weight if given
         if self.config["weight"] != "":
-            maps["weight"] = hp.read_map(os.path.expandvars(self.config["weight"]))[pixels]
+            maps["weight"] = hp.read_map(os.path.expandvars(self.config["weight"]))[
+                pixels
+            ]
 
         # Load all other maps in map_dict
         if len(self.config["map_dict"]) > 0:
@@ -289,7 +297,9 @@ class ObsCondition(Noisifier):
                     # band-independent keys:
                     if key in ["airmass", "tvis", "EBV"]:
                         if isinstance(self.config["map_dict"][key], str):
-                            maps[key] = hp.read_map(os.path.expandvars(self.config["map_dict"][key]))[pixels]
+                            maps[key] = hp.read_map(
+                                os.path.expandvars(self.config["map_dict"][key])
+                            )[pixels]
                         elif isinstance(self.config["map_dict"][key], float):
                             maps[key] = (
                                 np.ones(len(pixels)) * self.config["map_dict"][key]
@@ -299,7 +309,11 @@ class ObsCondition(Noisifier):
                         maps[key] = {}
                         for band in self.config["map_dict"][key].keys():
                             if isinstance(self.config["map_dict"][key][band], str):
-                                maps[key][band] = hp.read_map(os.path.expandvars(self.config["map_dict"][key][band]))[pixels]
+                                maps[key][band] = hp.read_map(
+                                    os.path.expandvars(
+                                        self.config["map_dict"][key][band]
+                                    )
+                                )[pixels]
                             elif isinstance(self.config["map_dict"][key][band], float):
                                 maps[key][band] = (
                                     np.ones(len(pixels))

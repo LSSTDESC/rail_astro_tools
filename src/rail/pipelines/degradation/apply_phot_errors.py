@@ -20,16 +20,16 @@ dustmap_dir = os.path.expandvars("${PZ_DUSTMAP_DIR}")
 
 
 ERROR_MODELS = dict(
-    lsst = dict(
-        ErrorModel='LSSTErrorModel',
-        Module='rail.creation.degraders.photometric_errors',
-        Bands=['u', 'g', 'r', 'i', 'z', 'y'],
+    lsst=dict(
+        ErrorModel="LSSTErrorModel",
+        Module="rail.creation.degraders.photometric_errors",
+        Bands=["u", "g", "r", "i", "z", "y"],
         Overrides=dict(
-            minorCol='minor',
-            majorCol='major',
-            extendedType='gaap',
-            hdf5_groupname='',
-        )
+            minorCol="minor",
+            majorCol="major",
+            extendedType="gaap",
+            hdf5_groupname="",
+        ),
     ),
     # roman = dict(
     #    ErrorModel='RomanErrorModel',
@@ -49,9 +49,9 @@ class ApplyPhotErrorsPipeline(RailPipeline):
 
     def __init__(
         self,
-        error_models: dict|None=None,
+        error_models: dict | None = None,
         *,
-        parallel: bool=False,
+        parallel: bool = False,
     ):
         RailPipeline.__init__(self)
 
@@ -75,7 +75,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val["Bands"]}
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
-            overrides = val.get('Overrides', {})
+            overrides = val.get("Overrides", {})
             the_error_model = error_model_class.make_and_connect(
                 name=f"error_model_{key}",
                 connections=dict(input=previous_stage.io.output),
@@ -85,7 +85,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
             self.add_stage(the_error_model)
             if parallel:
                 the_dereddener = Dereddener.make_and_connect(
-                    name=f'deredden_{key}',
+                    name=f"deredden_{key}",
                     dustmap_dir=dustmap_dir,
                     connections=dict(input=the_error_model.io.output),
                     copy_all_cols=True,

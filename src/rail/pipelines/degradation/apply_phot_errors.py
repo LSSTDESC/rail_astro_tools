@@ -93,15 +93,15 @@ class ApplyPhotErrorsPipeline(RailPipeline):
         previous_stage = self.reddener
         full_rename_dict = catalog_utils.get_active_tag().band_name_dict()
         full_a_env_dict = SHARED_PARAMS.band_a_env.copy()
-        
+
         for key, val in error_models.items():
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
             if 'Bands' in val:
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
-                a_env_dict = {band_: full_a_env_dict[band_] for band_ in val['Bands']}                
+                a_env_dict = {band_: full_a_env_dict[band_] for band_ in rename_dict.keys()}
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
-                a_env_dict = full_a_env_dict                
+                a_env_dict = full_a_env_dict
             overrides = val.get('Overrides', {})
             the_error_model = error_model_class.make_and_connect(
                 name=f'error_model_{key}',
@@ -115,7 +115,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
                     name=f'deredden_{key}',
                     dustmap_dir=dustmap_dir,
                     connections=dict(input=the_error_model.io.output),
-                    band_a_env=a_env_dict,                    
+                    band_a_env=a_env_dict,
                     copy_all_cols=True,
                 )
                 self.add_stage(the_dereddener)

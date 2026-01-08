@@ -98,7 +98,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
             error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
             if 'Bands' in val:
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
-                a_env_dict = {band_: full_a_env_dict[band_] for band_ in rename_dict.keys()}
+                a_env_dict = {band_: full_a_env_dict[band_] for band_ in rename_dict.values()}
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
                 a_env_dict = full_a_env_dict

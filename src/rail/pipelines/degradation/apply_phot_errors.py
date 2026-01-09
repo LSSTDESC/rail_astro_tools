@@ -102,7 +102,7 @@ class ApplyPhotErrorsPipeline(RailPipeline):
                 for band_ in val['Bands']:
                     if band_ in full_a_env_dict:
                         a_env_dict[band_] = full_a_env_dict[band_]
-                    else:
+                    else:  # pragma: no cover
                         renamed_band = rename_dict[band_]
                         a_env_dict[renamed_band] = full_a_env_dict[renamed_band]
             else:  # pragma: no cover

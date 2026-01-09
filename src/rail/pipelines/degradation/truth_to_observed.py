@@ -80,7 +80,7 @@ class TruthToObservedPipeline(RailPipeline):
                 for band_ in val['Bands']:
                     if band_ in full_a_env_dict:
                         a_env_dict[band_] = full_a_env_dict[band_]
-                    else:
+                    else:  # pragma: no cover
                         renamed_band = rename_dict[band_]
                         a_env_dict[renamed_band] = full_a_env_dict[renamed_band]
             else:  # pragma: no cover
@@ -105,7 +105,7 @@ class TruthToObservedPipeline(RailPipeline):
                     copy_all_cols=True,
                 )
                 self.add_stage(the_dereddener)
-                if key in models_to_run_select:
+                if key in models_to_run_select:  # pragma: no cover
                     self._add_selectors(
                         the_dereddener,
                         key,

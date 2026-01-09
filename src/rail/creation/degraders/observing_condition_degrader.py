@@ -168,7 +168,7 @@ class ObsCondition(Noisifier):
         ### Check weight type:
         if self.config["weight"] != "":
             # check if the path exists
-            if not os.path.exists(self.config["weight"]):
+            if not os.path.exists(os.path.expandvars(self.config["weight"])):
                 raise ValueError("The weight file is not found: " + self.config["weight"])
 
         ### Check map_dict:
@@ -212,7 +212,7 @@ class ObsCondition(Noisifier):
 
                         # check if the paths exist
                         if isinstance(self.config["map_dict"][key], str):
-                            if not os.path.exists(self.config["map_dict"][key]):
+                            if not os.path.exists(os.path.expandvars(self.config["map_dict"][key])):
                                 raise ValueError(
                                     "The following file is not found: " + self.config["map_dict"][key]
                                 )

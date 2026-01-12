@@ -318,12 +318,12 @@ class ObsCondition(Noisifier):
                 # band-independent keys:
                 if key in ["airmass", "tvis", "EBV"]:
                     if key != "EBV":# exclude EBV because it is not in LsstErrorModel
-                        obs_conditions[key] = self.maps[key][ind]
+                        obs_conditions[key] = self.maps[key][ind][0] # to be compatible with numpy > 2.4
                 # band-dependent keys
                 else:
                     obs_conditions[key] = {}
                     for band in (self.maps[key]).keys():
-                        obs_conditions[key][band] = self.maps[key][band][ind]
+                        obs_conditions[key][band] = self.maps[key][band][ind][0] # to be compatible with numpy > 2.4
             # For other keys in LSSTErrorModel:
             elif key not in ["pixels", "weight"]:
                 obs_conditions[key] = self.maps[key]

@@ -582,6 +582,58 @@ class SpecSelection_zCOSMOS(SpecSelection):
 
         return printMsg
 
+import numpy as np
+
+class SpecSelection_DESI_LRG(SpecSelection):
+    """The class of spectroscopic selections with DESI LRG (simplified).
+
+    This implements a simplified DESI LRG photometric selection using:
+      - zfiber < 21.60  (here approximated with z)
+      - z − W1 > 0.8 × (r − z) − 0.6
+      - (g − W1 > 2.9) OR (r − W1 > 1.8)
+      - [ ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3) ]
+
+    All of the above are combined with AND.
+
+    Required bands in `data` (via config.colnames): g, r, z, W1
+    """
+
+    name = "SpecSelection_DESI_LRG"
+
+    def selection(self, data):
+        """The DESI LRG selection function (simplified)."""
+        print("Applying the selection for DESI LRG (simplified cuts)...")
+
+        g = data[self.config.colnames["g"]]
+        r = data[self.config.colnames["r"]]
+        z = data[self.config.colnames["z"]]  # using z as proxy for zfiber
+        w1 = data[self.config.colnames["W1"]]
+
+        # 1) zfiber < 21.60  (approx with z)
+        cut_zfiber = (z < 21.60)
+
+        # 2) z − W1 > 0.8 × (r − z) − 0.6
+        cut_zw1_rz = (z - w1) > (0.8 * (r - z) - 0.6)
+
+        # 3) (g − W1 > 2.9) OR (r − W1 > 1.8)
+        cut_opt_ir = ((g - w1) > 2.9) | ((r - w1) > 1.8)
+
+        # 4) ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3)
+        rw1 = (r - w1)
+        cut_branch_a = (rw1 > (1.8 * (w1 - 17.14))) & (rw1 > (w1 - 16.33))
+        cut_branch_b = (rw1 > 3.3)
+        cut_complex = cut_branch_a | cut_branch_b
+
+        # AND all criteria together
+        lrg = cut_zfiber & cut_zw1_rz & cut_opt_ir & cut_complex
+
+        self.mask *= lrg
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI LRG selection (simplified)."
+
+
 
 class SpecSelection_HSC(SpecSelection):
     """The class of spectroscopic selections with HSC.

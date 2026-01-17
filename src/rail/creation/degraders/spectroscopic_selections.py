@@ -634,6 +634,47 @@ class SpecSelection_DESI_LRG(SpecSelection):
         return "Applying the DESI LRG selection (simplified)."
 
 
+class SpecSelection_DESI_ELG_LOP(SpecSelection):
+    """The class of spectroscopic selections with DESI ELG LOP.
+
+    Implements the simplified DESI ELG_LOP photometric selection using:
+      - (g > 20) AND (gfib < 24.1)
+      - 0.15 < (r − z)
+      - (g − r) < 0.5 × (r − z) + 0.1
+      - (g − r) < −1.2 × (r − z) + 1.3
+
+    All of the above are combined with AND.
+
+    Required bands in `data` (via config.colnames): g, r, z, gfib
+    """
+
+    name = "SpecSelection_DESI_ELG_LOP"
+
+    def selection(self, data):
+        """The DESI ELG_LOP selection function."""
+        print("Applying the selection for DESI ELG_LOP...")
+
+        g = data[self.config.colnames["g"]]
+        r = data[self.config.colnames["r"]]
+        z = data[self.config.colnames["z"]]
+
+        rz = (r - z)
+        gr = (g - r)
+
+        cut_mags = (g > 20.0) & (g < 24.1)
+        cut_rz = (rz > 0.15)
+        cut_line1 = (gr < (0.5 * rz + 0.1))
+        cut_line2 = (gr < (-1.2 * rz + 1.3))
+
+        elg_lop = cut_mags & cut_rz & cut_line1 & cut_line2
+
+        self.mask *= elg_lop
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI ELG_LOP selection (simplified)."
+
+
 
 class SpecSelection_HSC(SpecSelection):
     """The class of spectroscopic selections with HSC.

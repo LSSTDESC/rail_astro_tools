@@ -675,6 +675,31 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
         return "Applying the DESI ELG_LOP selection (simplified)."
 
 
+class SpecSelection_DESI_BGS(SpecSelection):
+    """The class of spectroscopic selections with DESI BGS .
+
+    Implements a minimal DESI Bright Galaxy Survey (BGS) selection using:
+      - r < 19.5
+
+    Required bands in `data` (via config.colnames): r
+    """
+
+    name = "SpecSelection_DESI_BGS"
+
+    def selection(self, data):
+        """The DESI BGS selection function (simplified cut)."""
+        print("Applying the selection for DESI BGS (r < 19.5)...")
+
+        r = data[self.config.colnames["r"]]
+
+        bgs = (r < 19.5)
+
+        self.mask *= bgs
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI BGS selection (simplified)."
+
 
 class SpecSelection_HSC(SpecSelection):
     """The class of spectroscopic selections with HSC.

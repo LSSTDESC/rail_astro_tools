@@ -582,8 +582,6 @@ class SpecSelection_zCOSMOS(SpecSelection):
 
         return printMsg
 
-import numpy as np
-
 class SpecSelection_DESI_LRG(SpecSelection):
     """The class of spectroscopic selections with DESI LRG (simplified).
 
@@ -599,6 +597,20 @@ class SpecSelection_DESI_LRG(SpecSelection):
     """
 
     name = "SpecSelection_DESI_LRG"
+    config_options = SpecSelection.config_options.copy()
+    config_options.update(
+        colnames=Param(
+            dict,
+            {
+                **{band: "mag_" + band + "_lsst" for band in "ugrizy"},
+                **{"W1": "W1"},
+                **{"redshift": "redshift"},
+            },
+            msg="a dictionary that includes necessary columns\
+                         (magnitudes, colors and redshift) for selection. For magnitudes, the keys are ugrizy; for colors, the keys are, \
+                         for example, gr standing for g-r; for redshift, the key is 'redshift'",
+        )
+    )
 
     def selection(self, data):
         """The DESI LRG selection function (simplified)."""

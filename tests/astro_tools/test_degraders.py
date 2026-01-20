@@ -223,6 +223,8 @@ def test_SpecSelection(data):
         name="col_remapper_test", hdf5_groupname="", columns=rename_dict
     )
     data = col_remapper_test(data)
+    data.data['W1'] = 19.0
+    data.data['W1_err'] = 0.02
 
     degrader_GAMA = SpecSelection_GAMA.make_stage()
     degrader_GAMA(data)
@@ -272,6 +274,11 @@ def test_SpecSelection(data):
     degrader_DESI_ELG_LOP(data)
     degrader_DESI_ELG_LOP.__repr__()
     os.remove(degrader_DESI_ELG_LOP.get_output(degrader_DESI_ELG_LOP.get_aliased_tag("output"), final_name=True))
+
+    degrader_DESI_LRG = SpecSelection_DESI_LRG.make_stage()
+    degrader_DESI_LRG(data)
+    degrader_DESI_LRG.__repr__()
+    os.remove(degrader_DESI_LRG.get_output(degrader_DESI_LRG.get_aliased_tag("output"), final_name=True))
 
 
 

@@ -76,6 +76,7 @@ class PhotometryManipulator(RailStage, ABC):
 
     name = "PhotometryManipulator"
     entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "photometry_manipulator"
     config_options = RailStage.config_options.copy()
     config_options.update(
         value_columns=Param(

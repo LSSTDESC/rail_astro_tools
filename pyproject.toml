@@ -1,10 +1,10 @@
 [project]
 name = "pz-rail-astro-tools"
 requires-python = ">=3.9"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 readme = "README.md"
 authors = [
-    { name = "LSST Dark Energy Science Collaboration (DESC)", email = "lsst-desc-rail-admin@slac.stanford.edu" }
+    { name = "LSST Dark Energy Science Collaboration (DESC)", email = "lsst-desc-rail-admin@slac.stanford.edu" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -17,7 +17,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "deprecated",
-    "pz-rail-base>=1.2.9",
+    "pz-rail-base>=2.0.0-dev",
     "numpy",
     "pandas>=2.2.2",
     "astropy",
@@ -34,14 +34,14 @@ dependencies = [
 dev = [
     "tables-io[full]",
     "pytest",
-    "pytest-cov", # Used to report total code coverage
-    "pre-commit", # Used to run checks before finalizing a git commit
-    "pylint", # Used for static linting of files
+    "pytest-cov",      # Used to report total code coverage
+    "pre-commit",      # Used to run checks before finalizing a git commit
+    "pylint",          # Used for static linting of files
 ]
 
 [build-system]
 requires = [
-    "setuptools>=62", # Used to build and package the Python project
+    "setuptools>=62",      # Used to build and package the Python project
     "setuptools_scm>=6.2", # Gets release version from git. Makes it available programmatically
 ]
 build-backend = "setuptools.build_meta"
@@ -50,17 +50,14 @@ build-backend = "setuptools.build_meta"
 write_to = "src/rail/astro_tools/_version.py"
 
 [tool.pytest.ini_options]
-testpaths = [
-    "tests",
-]
-addopts = [
-    "--cov=rail",
-    "--cov-report=html"
-]
+testpaths = ["tests"]
+addopts   = ["--cov=rail", "--cov-report=html"]
 
 [tool.pylint]
 disable = [
     "abstract-method",
+    "arguments-differ",               # let child classes override methods with extra args
+    "attribute-defined-outside-init",
     "invalid-name",
     "too-many-statements",
     "missing-module-docstring",
@@ -70,6 +67,7 @@ disable = [
     "duplicate-code",
     "use-dict-literal",
     "broad-exception-caught",
+    "unused-argument",                # need extra **kwargs in some places
 ]
 max-line-length = 110
 max-locals = 50

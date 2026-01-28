@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from ceci.config import StageParameter as Param
 from photerr import LsstErrorModel, LsstErrorParams
-
 from rail.creation.noisifier import Noisifier
 
 
@@ -57,6 +56,8 @@ class ObsCondition(Noisifier):
     """
 
     name = "ObsCondition"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "obs_condition"
     config_options = Noisifier.config_options.copy()
     config_options.update(
         nside=Param(
@@ -101,17 +102,16 @@ class ObsCondition(Noisifier):
         ),
     )
     # define constants:
-    STANDARD_BANDS = ["u","g","r","i","z","y"]
-    # set the A_lamba/E(B-V) values for the six LSST filters 
+    STANDARD_BANDS = ["u", "g", "r", "i", "z", "y"]
+    # set the A_lamba/E(B-V) values for the six LSST filters
     BAND_A_EBV = {
-            "u":4.81,
-            "g":3.64,
-            "r":2.70,
-            "i":2.06,
-            "z":1.58,
-            "y":1.31,
-        }
-    
+        "u": 4.81,
+        "g": 3.64,
+        "r": 2.70,
+        "i": 2.06,
+        "z": 1.58,
+        "y": 1.31,
+    }
 
     def __init__(self, args, **kwargs):
         super().__init__(args, **kwargs)
@@ -168,8 +168,10 @@ class ObsCondition(Noisifier):
         ### Check weight type:
         if self.config["weight"] != "":
             # check if the path exists
-            if not os.path.exists(os.path.expandvars(self.config["weight"])):
-                raise ValueError("The weight file is not found: " + self.config["weight"])
+            if not os.path.exists(self.config["weight"]):
+                raise ValueError(
+                    "The weight file is not found: " + self.config["weight"]
+                )
 
         ### Check map_dict:
 
@@ -177,10 +179,15 @@ class ObsCondition(Noisifier):
         # get lsst_error_model keys
         lsst_error_model_keys = list(LsstErrorParams.__dataclass_fields__.keys())
         if len(set(self.config["map_dict"].keys()) - set(lsst_error_model_keys)) != 0:
-            extra_keys = set(self.config["map_dict"].keys()) - set(lsst_error_model_keys)
+            extra_keys = set(self.config["map_dict"].keys()) - set(
+                lsst_error_model_keys
+            )
             # now we added EBV, which is not in LsstErrorParams:
             if extra_keys != {"EBV"}:
-                raise ValueError("Extra keywords are passed to the configuration: \n" + str(extra_keys))
+                raise ValueError(
+                    "Extra keywords are passed to the configuration: \n"
+                    + str(extra_keys)
+                )
 
         # Check data type for the keys:
         # Note that LSSTErrorModel checks
@@ -208,20 +215,27 @@ class ObsCondition(Noisifier):
                             isinstance(self.config["map_dict"][key], str)
                             or isinstance(self.config["map_dict"][key], float)
                         ):
-                            raise TypeError(f"{key} must be a path (string) or a float.")
+                            raise TypeError(
+                                f"{key} must be a path (string) or a float."
+                            )
 
                         # check if the paths exist
                         if isinstance(self.config["map_dict"][key], str):
-                            if not os.path.exists(os.path.expandvars(self.config["map_dict"][key])):
+                            if not os.path.exists(
+                                os.path.expandvars(self.config["map_dict"][key])
+                            ):
                                 raise ValueError(
-                                    "The following file is not found: " + self.config["map_dict"][key]
+                                    "The following file is not found: "
+                                    + self.config["map_dict"][key]
                                 )
 
                     # band-dependent keys
                     else:
 
                         # they must be dictionaries:
-                        if not isinstance(self.config["map_dict"][key], dict):  # pragma: no cover
+                        if not isinstance(
+                            self.config["map_dict"][key], dict
+                        ):  # pragma: no cover
                             raise TypeError(f"{key} must be a dictionary.")
 
                         # the dictionary cannot be empty
@@ -235,11 +249,17 @@ class ObsCondition(Noisifier):
                                 isinstance(self.config["map_dict"][key][band], str)
                                 or isinstance(self.config["map_dict"][key][band], float)
                             ):
-                                raise TypeError(f"{key}['{band}'] must be a path (string) or a float.")
+                                raise TypeError(
+                                    f"{key}['{band}'] must be a path (string) or a float."
+                                )
 
                             # check if the paths exist
                             if isinstance(self.config["map_dict"][key][band], str):
-                                if not os.path.exists(os.path.expandvars(self.config["map_dict"][key][band])):
+                                if not os.path.exists(
+                                    os.path.expandvars(
+                                        self.config["map_dict"][key][band]
+                                    )
+                                ):
                                     raise ValueError(
                                         "The following file is not found: "
                                         + self.config["map_dict"][key][band]
@@ -266,7 +286,9 @@ class ObsCondition(Noisifier):
 
         # Load weight if given
         if self.config["weight"] != "":
-            maps["weight"] = hp.read_map(os.path.expandvars(self.config["weight"]))[pixels]
+            maps["weight"] = hp.read_map(os.path.expandvars(self.config["weight"]))[
+                pixels
+            ]
 
         # Load all other maps in map_dict
         if len(self.config["map_dict"]) > 0:
@@ -275,17 +297,28 @@ class ObsCondition(Noisifier):
                     # band-independent keys:
                     if key in ["airmass", "tvis", "EBV"]:
                         if isinstance(self.config["map_dict"][key], str):
-                            maps[key] = hp.read_map(os.path.expandvars(self.config["map_dict"][key]))[pixels]
+                            maps[key] = hp.read_map(
+                                os.path.expandvars(self.config["map_dict"][key])
+                            )[pixels]
                         elif isinstance(self.config["map_dict"][key], float):
-                            maps[key] = np.ones(len(pixels)) * self.config["map_dict"][key]
+                            maps[key] = (
+                                np.ones(len(pixels)) * self.config["map_dict"][key]
+                            )
                     # band-dependent keys
                     else:
                         maps[key] = {}
                         for band in self.config["map_dict"][key].keys():
                             if isinstance(self.config["map_dict"][key][band], str):
-                                maps[key][band] = hp.read_map(os.path.expandvars(self.config["map_dict"][key][band]))[pixels]
+                                maps[key][band] = hp.read_map(
+                                    os.path.expandvars(
+                                        self.config["map_dict"][key][band]
+                                    )
+                                )[pixels]
                             elif isinstance(self.config["map_dict"][key][band], float):
-                                maps[key][band] = np.ones(len(pixels)) * self.config["map_dict"][key][band]
+                                maps[key][band] = (
+                                    np.ones(len(pixels))
+                                    * self.config["map_dict"][key][band]
+                                )
                 else:
                     # copy all other lsst_error_model parameters supplied
                     maps[key] = self.config["map_dict"][key]
@@ -317,13 +350,17 @@ class ObsCondition(Noisifier):
             if key in self.obs_cond_keys:
                 # band-independent keys:
                 if key in ["airmass", "tvis", "EBV"]:
-                    if key != "EBV":# exclude EBV because it is not in LsstErrorModel
-                        obs_conditions[key] = self.maps[key][ind][0] # to be compatible with numpy > 2.4
+                    if key != "EBV":  # exclude EBV because it is not in LsstErrorModel
+                        obs_conditions[key] = self.maps[key][ind][
+                            0
+                        ]  # to be compatible with numpy > 2.4
                 # band-dependent keys
                 else:
                     obs_conditions[key] = {}
                     for band in (self.maps[key]).keys():
-                        obs_conditions[key][band] = self.maps[key][band][ind][0] # to be compatible with numpy > 2.4
+                        obs_conditions[key][band] = self.maps[key][band][ind][
+                            0
+                        ]  # to be compatible with numpy > 2.4
             # For other keys in LSSTErrorModel:
             elif key not in ["pixels", "weight"]:
                 obs_conditions[key] = self.maps[key]
@@ -339,79 +376,97 @@ class ObsCondition(Noisifier):
         """
         pixels = self.maps["pixels"]
 
-        if "renameDict" in self.maps and set(['ra','dec']).issubset(list(self.maps["renameDict"].keys())):
+        if "renameDict" in self.maps and set(["ra", "dec"]).issubset(
+            list(self.maps["renameDict"].keys())
+        ):
             # if catalog contains ra, dec, but needs renaming
-            rakey=self.maps["renameDict"]['ra']
-            deckey=self.maps["renameDict"]['dec']
-            assigned_pix=hp.ang2pix(self.config["nside"], catalog[rakey].to_numpy(), catalog[deckey].to_numpy(), lonlat=True)            
-        elif set(['ra','dec']).issubset(catalog.columns):
+            rakey = self.maps["renameDict"]["ra"]
+            deckey = self.maps["renameDict"]["dec"]
+            assigned_pix = hp.ang2pix(
+                self.config["nside"],
+                catalog[rakey].to_numpy(),
+                catalog[deckey].to_numpy(),
+                lonlat=True,
+            )
+        elif set(["ra", "dec"]).issubset(catalog.columns):
             # if catalog contains ra, dec, and no renaming
-            assigned_pix=hp.ang2pix(self.config["nside"], catalog['ra'].to_numpy(), catalog['dec'].to_numpy(), lonlat=True)
+            assigned_pix = hp.ang2pix(
+                self.config["nside"],
+                catalog["ra"].to_numpy(),
+                catalog["dec"].to_numpy(),
+                lonlat=True,
+            )
         else:
-            # if catalog doesn't contain position information 
+            # if catalog doesn't contain position information
             print("No ra, dec found in catalogue, randomly assign pixels with weights.")
-            
+
             # load weights if specified, otherwise set to uniform weights
             if "weight" in self.maps:
                 weights = self.maps["weight"]
                 weights = weights / sum(weights)
             else:
                 weights = None
-            assigned_pix = self.rng.choice(pixels, size=len(catalog), replace=True, p=weights)
-            
+            assigned_pix = self.rng.choice(
+                pixels, size=len(catalog), replace=True, p=weights
+            )
+
             # in this case, also attach the ra, dec columns in the data:
-            ra, dec=hp.pix2ang(self.config["nside"],assigned_pix,lonlat=True)
-            skycoord = pd.DataFrame(np.c_[ra,dec], columns=["ra","decl"])
+            ra, dec = hp.pix2ang(self.config["nside"], assigned_pix, lonlat=True)
+            skycoord = pd.DataFrame(np.c_[ra, dec], columns=["ra", "decl"])
             catalog = pd.concat([catalog, skycoord], axis=1)
-            
+
         # this is the case where there are objects outside the footprint
-        overlap=np.isin(set(assigned_pix), pixels, assume_unique=True)
-        if not (overlap==True).all():
+        overlap = np.isin(set(assigned_pix), pixels, assume_unique=True)
+        if not (overlap == True).all():
             # flag all those pixels into -99
-            print("Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!")
-            ind=np.isin(assigned_pix, pixels)
-            assigned_pix[~ind]=-99
-               
+            print(
+                "Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!"
+            )
+            ind = np.isin(assigned_pix, pixels)
+            assigned_pix[~ind] = -99
+
         # make it a DataFrame object
         assigned_pix = pd.DataFrame(assigned_pix, columns=["pixel"])
         # attach pixels to the catalogue
         catalog = pd.concat([catalog, assigned_pix], axis=1)
 
         return catalog
-    
+
     # this is milky way extinction, should be added before other observing conditions is applied
-    def apply_galactic_extinction(self, pixel: int, pixel_cat: pd.DataFrame) -> pd.DataFrame:
+    def apply_galactic_extinction(
+        self, pixel: int, pixel_cat: pd.DataFrame
+    ) -> pd.DataFrame:
         """
         MW extinction reddening of the magnitudes
         """
         # find the corresponding ebv for the pixel
-        ind = self.maps["pixels"]==pixel
+        ind = self.maps["pixels"] == pixel
         ebvvec = self.maps["EBV"][ind]
-        
+
         if "renameDict" in self.maps:
             for b in self.STANDARD_BANDS:
                 # check which bands are included in renameDict
                 if b in self.maps["renameDict"]:
-                    key=self.maps["renameDict"][b]
+                    key = self.maps["renameDict"][b]
                     # update pixel_cat to the reddened magnitudes
-                    pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
+                    pixel_cat[key] = (pixel_cat[key].copy()) + ebvvec * self.BAND_A_EBV[
+                        b
+                    ]
         else:
             # go through standard bands
             for b in self.STANDARD_BANDS:
-                key=b
+                key = b
                 # update pixel_cat to the reddened magnitudes
-                pixel_cat[key] = (pixel_cat[key].copy())+ebvvec*self.BAND_A_EBV[b]
+                pixel_cat[key] = (pixel_cat[key].copy()) + ebvvec * self.BAND_A_EBV[b]
 
         return pixel_cat
 
-    
     def _initNoiseModel(self):
         """
         Initialise the error model: LSSTerrorModel
         """
         self.default_errorModel = LsstErrorModel()
 
-        
     def _addNoise(self):
         """
         Run the noisifier.
@@ -434,21 +489,21 @@ class ObsCondition(Noisifier):
             # assign each galaxy to a pixel
             print("Assigning pixels.")
             catalog = self.assign_pixels(catalog)
-            
+
             # loop over each pixel
             pixel_cat_list = []
             for pixel, pixel_cat in catalog.groupby("pixel"):
-                
+
                 # first, check if pixel is -99 - these objects have default obs_conditions:
-                if pixel==-99:
+                if pixel == -99:
                     # use the default error model for this pixel
                     errorModel = self.default_errorModel
-                
-                else:            
+
+                else:
                     # get the observing conditions for this pixel
                     obs_conditions = self.get_pixel_conditions(pixel)
 
-                    # apply MW extinction if supplied, 
+                    # apply MW extinction if supplied,
                     # replace the Mag column with reddened magnitudes:
                     if "EBV" in self.maps.keys():
                         pixel_cat = self.apply_galactic_extinction(pixel, pixel_cat)

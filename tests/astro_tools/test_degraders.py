@@ -240,6 +240,76 @@ def test_SpecSelection(data):
         degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True)
     )
 
+def test_SpecSelection(data):
+    bands = ["u", "g", "r", "i", "z", "y"]
+    band_dict = {band: f"mag_{band}_lsst" for band in bands}
+    rename_dict = {f"{band}_err": f"mag_err_{band}_lsst" for band in bands}
+    rename_dict.update({f"{band}": f"mag_{band}_lsst" for band in bands})
+    standard_colnames = [f"mag_{band}_lsst" for band in "ugrizy"]
+
+    col_remapper_test = ColumnMapper.make_stage(
+        name="col_remapper_test", hdf5_groupname="", columns=rename_dict
+    )
+    data = col_remapper_test(data)
+    data.data['W1'] = 19.0
+    data.data['W1_err'] = 0.02
+
+    degrader_GAMA = SpecSelection_GAMA.make_stage()
+    degrader_GAMA(data)
+    degrader_GAMA.__repr__()
+    os.remove(degrader_GAMA.get_output(degrader_GAMA.get_aliased_tag("output"), final_name=True))
+
+    degrader_BOSS = SpecSelection_BOSS.make_stage()
+    degrader_BOSS(data)
+    degrader_BOSS.__repr__()
+    os.remove(degrader_BOSS.get_output(degrader_BOSS.get_aliased_tag("output"), final_name=True))
+
+    degrader_DEEP2 = SpecSelection_DEEP2.make_stage()
+    degrader_DEEP2(data)
+    degrader_DEEP2.__repr__()
+    os.remove(degrader_DEEP2.get_output(degrader_DEEP2.get_aliased_tag("output"), final_name=True))
+
+    degrader_DEEP2_LSST = SpecSelection_DEEP2_LSST.make_stage()
+    degrader_DEEP2_LSST(data)
+    degrader_DEEP2_LSST.__repr__()
+    os.remove(degrader_DEEP2_LSST.get_output(degrader_DEEP2_LSST.get_aliased_tag("output"), final_name=True))
+
+    degrader_VVDSf02 = SpecSelection_VVDSf02.make_stage()
+    degrader_VVDSf02(data)
+    degrader_VVDSf02.__repr__()
+
+    degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(colnames={"i": "mag_i_lsst", "redshift": "redshift"})
+    degrader_zCOSMOS(data)
+    degrader_zCOSMOS.__repr__()
+    os.remove(degrader_zCOSMOS.get_output(degrader_zCOSMOS.get_aliased_tag("output"), final_name=True))
+
+    degrader_HSC = SpecSelection_HSC.make_stage()
+    degrader_HSC(data)
+    degrader_HSC.__repr__()
+    os.remove(degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True))
+
+    degrader_HSC = SpecSelection_HSC.make_stage(percentile_cut=70)
+    degrader_HSC(data)
+    degrader_HSC.__repr__()
+    os.remove(degrader_HSC.get_output(degrader_HSC.get_aliased_tag("output"), final_name=True))
+
+    degrader_DESI_BGS = SpecSelection_DESI_BGS.make_stage()
+    degrader_DESI_BGS(data)
+    degrader_DESI_BGS.__repr__()
+    os.remove(degrader_DESI_BGS.get_output(degrader_DESI_BGS.get_aliased_tag("output"), final_name=True))
+
+    degrader_DESI_ELG_LOP = SpecSelection_DESI_ELG_LOP.make_stage()
+    degrader_DESI_ELG_LOP(data)
+    degrader_DESI_ELG_LOP.__repr__()
+    os.remove(degrader_DESI_ELG_LOP.get_output(degrader_DESI_ELG_LOP.get_aliased_tag("output"), final_name=True))
+
+    degrader_DESI_LRG = SpecSelection_DESI_LRG.make_stage()
+    degrader_DESI_LRG(data)
+    degrader_DESI_LRG.__repr__()
+    os.remove(degrader_DESI_LRG.get_output(degrader_DESI_LRG.get_aliased_tag("output"), final_name=True))
+
+
+
 
 def test_SpecSelection_low_N_tot(data_forspec):
     bands = ["u", "g", "r", "i", "z", "y"]

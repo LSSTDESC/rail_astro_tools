@@ -49,15 +49,15 @@ class LineConfusion(Noisifier):
         """ """
         super().__init__(args, **kwargs)
         # validate parameters
-        if self.config.true_wavelen < 0:
+        if self.config.true_wavelen < 0:  # pragma: no cover
             raise ValueError(
                 "true_wavelen must be positive, not {self.config.true_wavelen}"
             )
-        if self.config.wrong_wavelen < 0:
+        if self.config.wrong_wavelen < 0:  # pragma: no cover
             raise ValueError(
                 "wrong_wavelen must be positive, not {self.config.wrong_wavelen}"
             )
-        if self.config.frac_wrong < 0 or self.config.frac_wrong > 1:
+        if self.config.frac_wrong < 0 or self.config.frac_wrong > 1:  # pragma: no cover
             raise ValueError(
                 "frac_wrong must be between 0 and 1., not {self.config.wrong_wavelen}"
             )

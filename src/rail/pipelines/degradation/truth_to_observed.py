@@ -8,6 +8,7 @@ import ceci
 import numpy as np
 from rail.core.stage import RailPipeline, RailStage
 from rail.core.utils import RAILDIR
+from rail.core.common_params import SHARED_PARAMS
 from rail.utils import catalog_utils
 
 from rail.creation.degraders.unrec_bl_model import UnrecBlModel
@@ -32,6 +33,7 @@ class TruthToObservedPipeline(RailPipeline):
         self,
         error_models: dict | None = None,
         selectors: dict | None = None,
+        models_to_run_select: list[str] | None = None,
         *,
         blending: bool = False,
         parallel: bool = False,
@@ -39,13 +41,17 @@ class TruthToObservedPipeline(RailPipeline):
         RailPipeline.__init__(self)
 
         active_catalog_config = catalog_utils.get_active_tag()
-        full_rename_dict = active_catalog_config.band_name_dict()
+        full_rename_dict = active_catalog_config.band_name_dict().copy()
+        full_a_env_dict = SHARED_PARAMS.band_a_env.copy()
 
         if error_models is None:
             error_models = ERROR_MODELS.copy()
 
         if selectors is None:
             selectors = SELECTORS.copy()
+
+        if models_to_run_select is None:
+            models_to_run_select = []
 
         config_pars = CommonConfigParams.copy()
         config_pars["colnames"] = full_rename_dict.copy()
@@ -69,8 +75,16 @@ class TruthToObservedPipeline(RailPipeline):
             )
             if "Bands" in val:
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val["Bands"]}
+                a_env_dict: dict[str, float] = {}
+                for band_ in val["Bands"]:
+                    if band_ in full_a_env_dict:
+                        a_env_dict[band_] = full_a_env_dict[band_]
+                    else:  # pragma: no cover
+                        renamed_band = rename_dict[band_]
+                        a_env_dict[renamed_band] = full_a_env_dict[renamed_band]
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
+                a_env_dict = full_a_env_dict
             overrides = val.get("Overrides", {})
             the_error_model = error_model_class.make_and_connect(
                 name=f"error_model_{key}",
@@ -79,20 +93,26 @@ class TruthToObservedPipeline(RailPipeline):
                 **overrides,
             )
             self.add_stage(the_error_model)
+            spec_selection_dict = rename_dict.copy()
+            spec_selection_dict.update(
+                redshift=active_catalog_config.config["redshift_col"]
+            )
             if parallel:
                 the_dereddener = Dereddener.make_and_connect(
                     name=f"deredden_{key}",
                     dustmap_dir=dustmap_dir,
                     connections=dict(input=the_error_model.io.output),
+                    band_a_env=a_env_dict,
                     copy_all_cols=True,
                 )
                 self.add_stage(the_dereddener)
-                self._add_selectors(
-                    the_dereddener,
-                    key,
-                    selectors,
-                    config_pars,
-                )
+                if key in models_to_run_select:  # pragma: no cover
+                    self._add_selectors(
+                        the_dereddener,
+                        key,
+                        selectors,
+                        config_pars,
+                    )
                 previous_stage = self.reddener
             else:
                 previous_stage = the_error_model

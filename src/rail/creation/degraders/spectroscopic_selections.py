@@ -603,6 +603,136 @@ class SpecSelection_zCOSMOS(SpecSelection):
 
         return printMsg
 
+class SpecSelection_DESI_LRG(SpecSelection):
+    """The class of spectroscopic selections with DESI LRG (simplified).
+
+    This implements a simplified DESI LRG photometric selection using:
+      - zfiber < 21.60  (here approximated with z)
+      - z − W1 > 0.8 × (r − z) − 0.6
+      - (g − W1 > 2.9) OR (r − W1 > 1.8)
+      - [ ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3) ]
+
+    All of the above are combined with AND.
+
+    Required bands in `data` (via config.colnames): g, r, z, W1
+    """
+
+    name = "SpecSelection_DESI_LRG"
+    config_options = SpecSelection.config_options.copy()
+    config_options.update(
+        colnames=Param(
+            dict,
+            {
+                **{band: "mag_" + band + "_lsst" for band in "ugrizy"},
+                **{"W1": "W1"},
+                **{"redshift": "redshift"},
+            },
+            msg="a dictionary that includes necessary columns\
+                         (magnitudes, colors and redshift) for selection. For magnitudes, the keys are ugrizy; for colors, the keys are, \
+                         for example, gr standing for g-r; for redshift, the key is 'redshift'",
+        )
+    )
+
+    def selection(self, data):
+        """The DESI LRG selection function (simplified)."""
+        print("Applying the selection for DESI LRG (simplified cuts)...")
+
+        g = data[self.config.colnames["g"]]
+        r = data[self.config.colnames["r"]]
+        z = data[self.config.colnames["z"]]  # using z as proxy for zfiber
+        w1 = data[self.config.colnames["W1"]]
+
+        # 1) zfiber < 21.60  (approx with z)
+        cut_zfiber = (z < 21.60)
+
+        # 2) z − W1 > 0.8 × (r − z) − 0.6
+        cut_zw1_rz = (z - w1) > (0.8 * (r - z) - 0.6)
+
+        # 3) (g − W1 > 2.9) OR (r − W1 > 1.8)
+        cut_opt_ir = ((g - w1) > 2.9) | ((r - w1) > 1.8)
+
+        # 4) ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3)
+        rw1 = (r - w1)
+        cut_branch_a = (rw1 > (1.8 * (w1 - 17.14))) & (rw1 > (w1 - 16.33))
+        cut_branch_b = (rw1 > 3.3)
+        cut_complex = cut_branch_a | cut_branch_b
+
+        # AND all criteria together
+        lrg = cut_zfiber & cut_zw1_rz & cut_opt_ir & cut_complex
+
+        self.mask *= lrg
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI LRG selection (simplified)."
+
+
+class SpecSelection_DESI_ELG_LOP(SpecSelection):
+    """The class of spectroscopic selections with DESI ELG LOP.
+
+    Implements the simplified DESI ELG_LOP photometric selection using:
+      - (g > 20) AND (gfib < 24.1)
+      - 0.15 < (r − z)
+      - (g − r) < 0.5 × (r − z) + 0.1
+      - (g − r) < −1.2 × (r − z) + 1.3
+
+    All of the above are combined with AND.
+
+    Required bands in `data` (via config.colnames): g, r, z, gfib
+    """
+
+    name = "SpecSelection_DESI_ELG_LOP"
+
+    def selection(self, data):
+        """The DESI ELG_LOP selection function."""
+        print("Applying the selection for DESI ELG_LOP...")
+
+        g = data[self.config.colnames["g"]]
+        r = data[self.config.colnames["r"]]
+        z = data[self.config.colnames["z"]]
+
+        rz = (r - z)
+        gr = (g - r)
+
+        cut_mags = (g > 20.0) & (g < 24.1)
+        cut_rz = (rz > 0.15)
+        cut_line1 = (gr < (0.5 * rz + 0.1))
+        cut_line2 = (gr < (-1.2 * rz + 1.3))
+
+        elg_lop = cut_mags & cut_rz & cut_line1 & cut_line2
+
+        self.mask *= elg_lop
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI ELG_LOP selection (simplified)."
+
+
+class SpecSelection_DESI_BGS(SpecSelection):
+    """The class of spectroscopic selections with DESI BGS .
+
+    Implements a minimal DESI Bright Galaxy Survey (BGS) selection using:
+      - r < 19.5
+
+    Required bands in `data` (via config.colnames): r
+    """
+
+    name = "SpecSelection_DESI_BGS"
+
+    def selection(self, data):
+        """The DESI BGS selection function (simplified cut)."""
+        print("Applying the selection for DESI BGS (r < 19.5)...")
+
+        r = data[self.config.colnames["r"]]
+
+        bgs = (r < 19.5)
+
+        self.mask *= bgs
+
+    def __repr__(self):
+        """Define how the model is represented and printed."""
+        return "Applying the DESI BGS selection (simplified)."
+
 
 class SpecSelection_HSC(SpecSelection):
     """The class of spectroscopic selections with HSC.

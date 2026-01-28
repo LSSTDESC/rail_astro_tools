@@ -351,12 +351,16 @@ class ObsCondition(Noisifier):
                 # band-independent keys:
                 if key in ["airmass", "tvis", "EBV"]:
                     if key != "EBV":  # exclude EBV because it is not in LsstErrorModel
-                        obs_conditions[key] = float(self.maps[key][ind])
+                        obs_conditions[key] = self.maps[key][ind][
+                            0
+                        ]  # to be compatible with numpy > 2.4
                 # band-dependent keys
                 else:
                     obs_conditions[key] = {}
                     for band in (self.maps[key]).keys():
-                        obs_conditions[key][band] = float(self.maps[key][band][ind])
+                        obs_conditions[key][band] = self.maps[key][band][ind][
+                            0
+                        ]  # to be compatible with numpy > 2.4
             # For other keys in LSSTErrorModel:
             elif key not in ["pixels", "weight"]:
                 obs_conditions[key] = self.maps[key]
@@ -412,13 +416,13 @@ class ObsCondition(Noisifier):
             catalog = pd.concat([catalog, skycoord], axis=1)
 
         # this is the case where there are objects outside the footprint
-        overlap = np.in1d(set(assigned_pix), pixels, assume_unique=True)
+        overlap = np.isin(set(assigned_pix), pixels, assume_unique=True)
         if not (overlap == True).all():
             # flag all those pixels into -99
             print(
                 "Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!"
             )
-            ind = np.in1d(assigned_pix, pixels)
+            ind = np.isin(assigned_pix, pixels)
             assigned_pix[~ind] = -99
 
         # make it a DataFrame object

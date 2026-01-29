@@ -6,10 +6,8 @@ import os
 
 import ceci
 import numpy as np
-from rail.core.stage import RailPipeline, RailStage
-from rail.core.utils import RAILDIR
+from rail.core.stage import RailPipeline
 from rail.utils import catalog_utils
-from rail.utils.catalog_utils import CatalogConfigBase
 
 # Various rail modules
 

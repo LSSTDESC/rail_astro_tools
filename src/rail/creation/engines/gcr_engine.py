@@ -1,9 +1,10 @@
 """Stage that loads a catalog from GCRCatalogs."""
+
 import GCRCatalogs
 import pandas as pd
-from rail.creation.engine import Creator
-from rail.core.data import PqHandle
 from ceci.config import StageParameter as Param
+from rail.core.data import PqHandle
+from rail.creation.engine import Creator
 
 
 class GCRCreator(Creator):
@@ -19,6 +20,9 @@ class GCRCreator(Creator):
     """
 
     name = "GCRLoader"
+    entrypoint_function = "sample"  # the user-facing science function for this class
+    interactive_function = "gcr_loader"
+
     outputs = [("output", PqHandle)]
 
     config_options = Creator.config_options.copy()
@@ -76,4 +80,4 @@ class GCRCreator(Creator):
         cat = cat.sample(n=self.config.n_samples, random_state=self.config.seed)
         cat = cat[self.config.quantities]
 
-        self.add_data("output", cat)
+        self.set_data("output", cat)

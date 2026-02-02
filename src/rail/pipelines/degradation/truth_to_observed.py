@@ -3,47 +3,42 @@
 
 # Prerquisites, os, and numpy
 import os
+
+import ceci
 import numpy as np
+from rail.core.stage import RailPipeline, RailStage
+from rail.core.utils import RAILDIR
+from rail.core.common_params import SHARED_PARAMS
+from rail.utils import catalog_utils
+
+from rail.creation.degraders.unrec_bl_model import UnrecBlModel
 
 # Various rail modules
 from rail.tools.photometry_tools import Dereddener, Reddener
 
-from rail.core.stage import RailStage, RailPipeline
-
-import ceci
-
-from rail.core.utils import RAILDIR
-from rail.core.common_params import SHARED_PARAMS
-from rail.utils import catalog_utils
-from rail.creation.degraders.unrec_bl_model import UnrecBlModel
-
-from .spectroscopic_selection_pipeline import SELECTORS, CommonConfigParams
 from .apply_phot_errors import ERROR_MODELS
+from .spectroscopic_selection_pipeline import SELECTORS, CommonConfigParams
 
-
-if 'PZ_DUSTMAP_DIR' not in os.environ:  # pragma: no cover
-    os.environ['PZ_DUSTMAP_DIR'] = '.'
+if "PZ_DUSTMAP_DIR" not in os.environ:  # pragma: no cover
+    os.environ["PZ_DUSTMAP_DIR"] = "."
 
 dustmap_dir = os.path.expandvars("${PZ_DUSTMAP_DIR}")
 
 
 class TruthToObservedPipeline(RailPipeline):
 
-    default_input_dict = dict(input='dummy.in')
+    default_input_dict = dict(input="dummy.in")
 
     def __init__(
         self,
-        error_models: dict|None=None,
-        selectors: dict|None=None,
-        models_to_run_select: list[str]|None=None,
+        error_models: dict | None = None,
+        selectors: dict | None = None,
+        models_to_run_select: list[str] | None = None,
         *,
-        blending: bool=False,
-        parallel: bool=False,
+        blending: bool = False,
+        parallel: bool = False,
     ):
         RailPipeline.__init__(self)
-
-        DS = RailStage.data_store
-        DS.__class__.allow_overwrite = True
 
         active_catalog_config = catalog_utils.get_active_tag()
         full_rename_dict = active_catalog_config.band_name_dict().copy()
@@ -59,8 +54,10 @@ class TruthToObservedPipeline(RailPipeline):
             models_to_run_select = []
 
         config_pars = CommonConfigParams.copy()
-        config_pars['colnames'] = full_rename_dict.copy()
-        config_pars['colnames']['redshift'] = active_catalog_config.config['redshift_col']
+        config_pars["colnames"] = full_rename_dict.copy()
+        config_pars["colnames"]["redshift"] = active_catalog_config.config[
+            "redshift_col"
+        ]
 
         self.reddener = Reddener.build(
             dustmap_dir=dustmap_dir,
@@ -73,11 +70,13 @@ class TruthToObservedPipeline(RailPipeline):
             previous_stage = self.unrec_bl
 
         for key, val in error_models.items():
-            error_model_class = ceci.PipelineStage.get_stage(val['ErrorModel'], val['Module'])
-            if 'Bands' in val:
-                rename_dict = {band_: full_rename_dict[band_] for band_ in val['Bands']}
+            error_model_class = ceci.PipelineStage.get_stage(
+                val["ErrorModel"], val["Module"]
+            )
+            if "Bands" in val:
+                rename_dict = {band_: full_rename_dict[band_] for band_ in val["Bands"]}
                 a_env_dict: dict[str, float] = {}
-                for band_ in val['Bands']:
+                for band_ in val["Bands"]:
                     if band_ in full_a_env_dict:
                         a_env_dict[band_] = full_a_env_dict[band_]
                     else:  # pragma: no cover
@@ -86,19 +85,21 @@ class TruthToObservedPipeline(RailPipeline):
             else:  # pragma: no cover
                 rename_dict = full_rename_dict
                 a_env_dict = full_a_env_dict
-            overrides = val.get('Overrides', {})
+            overrides = val.get("Overrides", {})
             the_error_model = error_model_class.make_and_connect(
-                name=f'error_model_{key}',
+                name=f"error_model_{key}",
                 connections=dict(input=previous_stage.io.output),
                 renameDict=rename_dict,
                 **overrides,
             )
             self.add_stage(the_error_model)
             spec_selection_dict = rename_dict.copy()
-            spec_selection_dict.update(redshift=active_catalog_config.config['redshift_col'])
+            spec_selection_dict.update(
+                redshift=active_catalog_config.config["redshift_col"]
+            )
             if parallel:
                 the_dereddener = Dereddener.make_and_connect(
-                    name=f'deredden_{key}',
+                    name=f"deredden_{key}",
                     dustmap_dir=dustmap_dir,
                     connections=dict(input=the_error_model.io.output),
                     band_a_env=a_env_dict,
@@ -129,7 +130,6 @@ class TruthToObservedPipeline(RailPipeline):
                 config_pars,
             )
 
-
     def _add_selectors(
         self,
         previous_stage,
@@ -138,11 +138,10 @@ class TruthToObservedPipeline(RailPipeline):
         config_pars: dict,
     ) -> None:
 
-
         for keyS, valS in selectors.items():
-            the_class = ceci.PipelineStage.get_stage(valS['Select'], valS['Module'])
+            the_class = ceci.PipelineStage.get_stage(valS["Select"], valS["Module"])
             the_selector = the_class.make_and_connect(
-                name=f'select_{key}_{keyS}',
+                name=f"select_{key}_{keyS}",
                 connections=dict(input=previous_stage.io.output),
                 **config_pars,
             )

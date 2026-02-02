@@ -603,6 +603,7 @@ class SpecSelection_zCOSMOS(SpecSelection):
 
         return printMsg
 
+
 class SpecSelection_DESI_LRG(SpecSelection):
     """The class of spectroscopic selections with DESI LRG (simplified).
 
@@ -618,6 +619,8 @@ class SpecSelection_DESI_LRG(SpecSelection):
     """
 
     name = "SpecSelection_DESI_LRG"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_DESI_LRG"
     config_options = SpecSelection.config_options.copy()
     config_options.update(
         colnames=Param(
@@ -643,7 +646,7 @@ class SpecSelection_DESI_LRG(SpecSelection):
         w1 = data[self.config.colnames["W1"]]
 
         # 1) zfiber < 21.60  (approx with z)
-        cut_zfiber = (z < 21.60)
+        cut_zfiber = z < 21.60
 
         # 2) z − W1 > 0.8 × (r − z) − 0.6
         cut_zw1_rz = (z - w1) > (0.8 * (r - z) - 0.6)
@@ -652,9 +655,9 @@ class SpecSelection_DESI_LRG(SpecSelection):
         cut_opt_ir = ((g - w1) > 2.9) | ((r - w1) > 1.8)
 
         # 4) ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3)
-        rw1 = (r - w1)
+        rw1 = r - w1
         cut_branch_a = (rw1 > (1.8 * (w1 - 17.14))) & (rw1 > (w1 - 16.33))
-        cut_branch_b = (rw1 > 3.3)
+        cut_branch_b = rw1 > 3.3
         cut_complex = cut_branch_a | cut_branch_b
 
         # AND all criteria together
@@ -682,6 +685,8 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
     """
 
     name = "SpecSelection_DESI_ELG_LOP"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_ELG_LOP"
 
     def selection(self, data):
         """The DESI ELG_LOP selection function."""
@@ -691,13 +696,13 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
         r = data[self.config.colnames["r"]]
         z = data[self.config.colnames["z"]]
 
-        rz = (r - z)
-        gr = (g - r)
+        rz = r - z
+        gr = g - r
 
         cut_mags = (g > 20.0) & (g < 24.1)
-        cut_rz = (rz > 0.15)
-        cut_line1 = (gr < (0.5 * rz + 0.1))
-        cut_line2 = (gr < (-1.2 * rz + 1.3))
+        cut_rz = rz > 0.15
+        cut_line1 = gr < (0.5 * rz + 0.1)
+        cut_line2 = gr < (-1.2 * rz + 1.3)
 
         elg_lop = cut_mags & cut_rz & cut_line1 & cut_line2
 
@@ -718,6 +723,8 @@ class SpecSelection_DESI_BGS(SpecSelection):
     """
 
     name = "SpecSelection_DESI_BGS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_DESI_BGS"
 
     def selection(self, data):
         """The DESI BGS selection function (simplified cut)."""
@@ -725,7 +732,7 @@ class SpecSelection_DESI_BGS(SpecSelection):
 
         r = data[self.config.colnames["r"]]
 
-        bgs = (r < 19.5)
+        bgs = r < 19.5
 
         self.mask *= bgs
 

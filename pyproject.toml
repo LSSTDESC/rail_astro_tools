@@ -18,6 +18,8 @@ dynamic = ["version"]
 dependencies = [
     "deprecated",
     "pz-rail-base>=1.0.3",
+    "qp-prob>=1.0",
+    "sacc>=2.1",
     "numpy",
     "pandas>=2.2.2",
     "astropy",

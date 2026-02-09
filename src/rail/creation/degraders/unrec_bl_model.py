@@ -67,7 +67,7 @@ class UnrecBlModel(Degrader):
         output_data : PqHandle
             A handle giving access to a table with degraded sample
         """
-        if seed is not None:
+        if seed is not None:  # pragma: no cover
             self.config.seed = seed
 
         self.set_data("input", sample)

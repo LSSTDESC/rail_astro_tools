@@ -162,13 +162,13 @@ class ObsCondition(Noisifier):
             raise ValueError("mask needs to be provided for the input maps.")
 
         # check if the path exists
-        if not os.path.exists(self.config["mask"]):
+        if not os.path.exists(os.path.expandvars(self.config["mask"])):
             raise ValueError("The mask file is not found: " + self.config["mask"])
 
         ### Check weight type:
         if self.config["weight"] != "":
             # check if the path exists
-            if not os.path.exists(self.config["weight"]):
+            if not os.path.exists(os.path.expandvars(self.config["weight"])):
                 raise ValueError("The weight file is not found: " + self.config["weight"])
 
         ### Check map_dict:
@@ -212,7 +212,7 @@ class ObsCondition(Noisifier):
 
                         # check if the paths exist
                         if isinstance(self.config["map_dict"][key], str):
-                            if not os.path.exists(self.config["map_dict"][key]):
+                            if not os.path.exists(os.path.expandvars(self.config["map_dict"][key])):
                                 raise ValueError(
                                     "The following file is not found: " + self.config["map_dict"][key]
                                 )
@@ -239,7 +239,7 @@ class ObsCondition(Noisifier):
 
                             # check if the paths exist
                             if isinstance(self.config["map_dict"][key][band], str):
-                                if not os.path.exists(self.config["map_dict"][key][band]):
+                                if not os.path.exists(os.path.expandvars(self.config["map_dict"][key][band])):
                                     raise ValueError(
                                         "The following file is not found: "
                                         + self.config["map_dict"][key][band]
@@ -257,7 +257,7 @@ class ObsCondition(Noisifier):
         maps = {}
 
         # Load mask
-        mask = hp.read_map(self.config["mask"])
+        mask = hp.read_map(os.path.expandvars(self.config["mask"]))
         if (mask < 0).any():
             # set negative values (if any) to zero
             mask[mask < 0] = 0
@@ -266,7 +266,7 @@ class ObsCondition(Noisifier):
 
         # Load weight if given
         if self.config["weight"] != "":
-            maps["weight"] = hp.read_map(self.config["weight"])[pixels]
+            maps["weight"] = hp.read_map(os.path.expandvars(self.config["weight"]))[pixels]
 
         # Load all other maps in map_dict
         if len(self.config["map_dict"]) > 0:
@@ -275,7 +275,7 @@ class ObsCondition(Noisifier):
                     # band-independent keys:
                     if key in ["airmass", "tvis", "EBV"]:
                         if isinstance(self.config["map_dict"][key], str):
-                            maps[key] = hp.read_map(self.config["map_dict"][key])[pixels]
+                            maps[key] = hp.read_map(os.path.expandvars(self.config["map_dict"][key]))[pixels]
                         elif isinstance(self.config["map_dict"][key], float):
                             maps[key] = np.ones(len(pixels)) * self.config["map_dict"][key]
                     # band-dependent keys
@@ -283,7 +283,7 @@ class ObsCondition(Noisifier):
                         maps[key] = {}
                         for band in self.config["map_dict"][key].keys():
                             if isinstance(self.config["map_dict"][key][band], str):
-                                maps[key][band] = hp.read_map(self.config["map_dict"][key][band])[pixels]
+                                maps[key][band] = hp.read_map(os.path.expandvars(self.config["map_dict"][key][band]))[pixels]
                             elif isinstance(self.config["map_dict"][key][band], float):
                                 maps[key][band] = np.ones(len(pixels)) * self.config["map_dict"][key][band]
                 else:
@@ -318,12 +318,12 @@ class ObsCondition(Noisifier):
                 # band-independent keys:
                 if key in ["airmass", "tvis", "EBV"]:
                     if key != "EBV":# exclude EBV because it is not in LsstErrorModel
-                        obs_conditions[key] = float(self.maps[key][ind])
+                        obs_conditions[key] = self.maps[key][ind][0] # to be compatible with numpy > 2.4
                 # band-dependent keys
                 else:
                     obs_conditions[key] = {}
                     for band in (self.maps[key]).keys():
-                        obs_conditions[key][band] = float(self.maps[key][band][ind])
+                        obs_conditions[key][band] = self.maps[key][band][ind][0] # to be compatible with numpy > 2.4
             # For other keys in LSSTErrorModel:
             elif key not in ["pixels", "weight"]:
                 obs_conditions[key] = self.maps[key]
@@ -365,11 +365,11 @@ class ObsCondition(Noisifier):
             catalog = pd.concat([catalog, skycoord], axis=1)
             
         # this is the case where there are objects outside the footprint
-        overlap=np.in1d(set(assigned_pix), pixels, assume_unique=True)
+        overlap=np.isin(set(assigned_pix), pixels, assume_unique=True)
         if not (overlap==True).all():
             # flag all those pixels into -99
             print("Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!")
-            ind=np.in1d(assigned_pix, pixels)
+            ind=np.isin(assigned_pix, pixels)
             assigned_pix[~ind]=-99
                
         # make it a DataFrame object

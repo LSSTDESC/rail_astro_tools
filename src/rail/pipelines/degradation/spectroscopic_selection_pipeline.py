@@ -11,7 +11,7 @@ from rail.core.stage import RailStage, RailPipeline
 
 import ceci
 
-from rail.utils.catalog_utils import CatalogConfigBase
+from rail.utils import catalog_utils
 from rail.core.utils import RAILDIR
 
 SELECTORS = dict(
@@ -59,12 +59,13 @@ class SpectroscopicSelectionPipeline(RailPipeline):
             selectors = SELECTORS.copy()
 
         config_pars = CommonConfigParams.copy()
-        active_catalog = CatalogConfigBase.active_class()        
-        if active_catalog:
-            colnames = active_catalog.band_name_dict()
-            colnames['redshift'] = active_catalog.redshift_col
-            config_pars['colnames'] = colnames            
 
+        active_catalog_tag = catalog_utils.get_active_tag()
+        
+        colnames = active_catalog_tag.band_name_dict().copy()
+        colnames['redshift'] = active_catalog_tag.config.redshift_col
+        config_pars['colnames'] = colnames
+        
         for key, val in selectors.items():
             the_class = ceci.PipelineStage.get_stage(val['Select'], val['Module'])
             the_selector = the_class.make_and_connect(

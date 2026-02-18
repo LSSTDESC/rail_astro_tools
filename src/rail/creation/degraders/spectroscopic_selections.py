@@ -5,16 +5,16 @@ import os
 import numpy as np
 from ceci.config import StageParameter as Param
 from rail.creation.selector import Selector
-from scipy.interpolate import interp1d
 from rail.utils.path_utils import RAILDIR
+from scipy.interpolate import interp1d
 
 
 class SpecSelection(Selector):
-    """The super class of spectroscopic selections.
-
-    """
+    """The super class of spectroscopic selections."""
 
     name = "SpecSelection"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection"
     config_options = Selector.config_options.copy()
     config_options.update(
         N_tot=Param(int, 10000, msg="Number of selected sources"),
@@ -26,9 +26,10 @@ class SpecSelection(Selector):
         ),
         success_rate_dir=Param(
             str,
-            os.path.join(RAILDIR,
-                         "rail/examples_data/creation_data/data/success_rate_data",
-                         ),
+            os.path.join(
+                RAILDIR,
+                "rail/examples_data/creation_data/data/success_rate_data",
+            ),
             msg="The path to the directory containing success rate files.",
         ),
         percentile_cut=Param(int, 100, msg="cut redshifts above this percentile"),
@@ -38,9 +39,10 @@ class SpecSelection(Selector):
                 **{band: "mag_" + band + "_lsst" for band in "ugrizy"},
                 **{"redshift": "redshift"},
             },
-            msg="a dictionary that includes necessary columns\
-                         (magnitudes, colors and redshift) for selection. For magnitudes, the keys are ugrizy; for colors, the keys are, \
-                         for example, gr standing for g-r; for redshift, the key is 'redshift'",
+            msg="""a dictionary that includes necessary columns (magnitudes, colors and
+                redshift) for selection. For magnitudes, the keys are ugrizy; for
+                colors, the keys are, for example, gr standing for g-r; for redshift,
+                the key is 'redshift'""",
         ),
         random_seed=Param(int, 42, msg="random seed for reproducibility"),
     )
@@ -104,8 +106,7 @@ class SpecSelection(Selector):
             self.mask &= np.isfinite(data[colname])
 
     def downsampling_N_tot(self):
-        """Randomly sample down the objects to a given number of data objects.
-        """
+        """Randomly sample down the objects to a given number of data objects."""
         N_tot = self.config.N_tot
         N_selected = np.count_nonzero(self.mask)
         if N_tot > N_selected:
@@ -140,9 +141,10 @@ class SpecSelection(Selector):
             self.downsampling_N_tot()
 
         return self.mask
-#         data_selected = data.iloc[np.where(self.mask == 1)[0]]
 
-#         self.add_data("output", data_selected)
+    #         data_selected = data.iloc[np.where(self.mask == 1)[0]]
+
+    #         self.add_data("output", data_selected)
 
     def __repr__(self):
         """
@@ -159,9 +161,11 @@ class SpecSelection_GAMA(SpecSelection):
     """
 
     name = "SpecSelection_GAMA"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_GAMA"
 
     def selection(self, data):
-        """GAMA selection function. """
+        """GAMA selection function."""
         print("Applying the selection from GAMA survey...")
         self.mask *= data[self.config.colnames["r"]] < 19.87
 
@@ -187,6 +191,8 @@ class SpecSelection_BOSS(SpecSelection):
     """
 
     name = "SpecSelection_BOSS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_BOSS"
 
     def selection(self, data):
         """The BOSS selection function."""
@@ -229,7 +235,7 @@ class SpecSelection_BOSS(SpecSelection):
         self.mask *= low_z | cmass
 
     def __repr__(self):
-        """ Define how the model is represented and printed."""
+        """Define how the model is represented and printed."""
         # start message
         printMsg = "Applying the BOSS selection."
 
@@ -257,6 +263,8 @@ class SpecSelection_DEEP2_LSST(SpecSelection):
     """
 
     name = "SpecSelection_DEEP2_LSST"
+    interactive_function = "spec_selection_DEEP2_LSST"
+    entrypoint_function = "__call__"
 
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
@@ -269,15 +277,22 @@ class SpecSelection_DEEP2_LSST(SpecSelection):
         We cannot apply the surface brightness cut and do not apply the Gaussian
         weighted sampling near the original colour cuts.
         """
-        gr = data[self.config.colnames['g']] - data[self.config.colnames['r']]
-        ri = data[self.config.colnames['r']] - data[self.config.colnames['i']]
-        B = data[self.config.colnames['g']] + 0.35 * gr
-        R = data[self.config.colnames['r']] - 0.30 * ri
-        I = data[self.config.colnames['i']] - 0.50 * ri
+        gr = data[self.config.colnames["g"]] - data[self.config.colnames["r"]]
+        ri = data[self.config.colnames["r"]] - data[self.config.colnames["i"]]
+        B = data[self.config.colnames["g"]] + 0.35 * gr
+        R = data[self.config.colnames["r"]] - 0.30 * ri
+        I = data[self.config.colnames["i"]] - 0.50 * ri
 
-        mask = np.logical_and(R > 18.5, np.logical_and(R < 24.1,
-                                                       np.logical_or(B - R < 2.45 * (R - I) - 0.2976,
-                                                                     np.logical_or(R - I > 1.1, B - R < 0.33))))
+        mask = np.logical_and(
+            R > 18.5,
+            np.logical_and(
+                R < 24.1,
+                np.logical_or(
+                    B - R < 2.45 * (R - I) - 0.2976,
+                    np.logical_or(R - I > 1.1, B - R < 0.33),
+                ),
+            ),
+        )
 
         # update the internal state
         self.mask &= mask
@@ -331,6 +346,8 @@ class SpecSelection_DEEP2(SpecSelection):
     """
 
     name = "SpecSelection_DEEP2"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_DEEP2"
 
     def photometryCut(self, data):
         """Applies DEEP2 photometric cut based on Newman+13.
@@ -418,6 +435,8 @@ class SpecSelection_VVDSf02(SpecSelection):
     """
 
     name = "SpecSelection_VVDSf02"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_VVDSf02"
 
     def photometryCut(self, data):
         """Photometric cut of VVDS 2h-field based on LeFèvre+05.
@@ -529,6 +548,8 @@ class SpecSelection_zCOSMOS(SpecSelection):
     """
 
     name = "SpecSelection_zCOSMOS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_zCOSMOS"
 
     def photometryCut(self, data):
         """Photometry cut for zCOSMOS based on Lilly+09.
@@ -582,6 +603,7 @@ class SpecSelection_zCOSMOS(SpecSelection):
 
         return printMsg
 
+
 class SpecSelection_DESI_LRG(SpecSelection):
     """The class of spectroscopic selections with DESI LRG (simplified).
 
@@ -597,6 +619,8 @@ class SpecSelection_DESI_LRG(SpecSelection):
     """
 
     name = "SpecSelection_DESI_LRG"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_DESI_LRG"
     config_options = SpecSelection.config_options.copy()
     config_options.update(
         colnames=Param(
@@ -622,7 +646,7 @@ class SpecSelection_DESI_LRG(SpecSelection):
         w1 = data[self.config.colnames["W1"]]
 
         # 1) zfiber < 21.60  (approx with z)
-        cut_zfiber = (z < 21.60)
+        cut_zfiber = z < 21.60
 
         # 2) z − W1 > 0.8 × (r − z) − 0.6
         cut_zw1_rz = (z - w1) > (0.8 * (r - z) - 0.6)
@@ -631,9 +655,9 @@ class SpecSelection_DESI_LRG(SpecSelection):
         cut_opt_ir = ((g - w1) > 2.9) | ((r - w1) > 1.8)
 
         # 4) ((r − W1 > 1.8 × (W1 − 17.14)) AND (r − W1 > W1 − 16.33)) OR (r − W1 > 3.3)
-        rw1 = (r - w1)
+        rw1 = r - w1
         cut_branch_a = (rw1 > (1.8 * (w1 - 17.14))) & (rw1 > (w1 - 16.33))
-        cut_branch_b = (rw1 > 3.3)
+        cut_branch_b = rw1 > 3.3
         cut_complex = cut_branch_a | cut_branch_b
 
         # AND all criteria together
@@ -661,6 +685,8 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
     """
 
     name = "SpecSelection_DESI_ELG_LOP"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_ELG_LOP"
 
     def selection(self, data):
         """The DESI ELG_LOP selection function."""
@@ -670,13 +696,13 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
         r = data[self.config.colnames["r"]]
         z = data[self.config.colnames["z"]]
 
-        rz = (r - z)
-        gr = (g - r)
+        rz = r - z
+        gr = g - r
 
         cut_mags = (g > 20.0) & (g < 24.1)
-        cut_rz = (rz > 0.15)
-        cut_line1 = (gr < (0.5 * rz + 0.1))
-        cut_line2 = (gr < (-1.2 * rz + 1.3))
+        cut_rz = rz > 0.15
+        cut_line1 = gr < (0.5 * rz + 0.1)
+        cut_line2 = gr < (-1.2 * rz + 1.3)
 
         elg_lop = cut_mags & cut_rz & cut_line1 & cut_line2
 
@@ -697,6 +723,8 @@ class SpecSelection_DESI_BGS(SpecSelection):
     """
 
     name = "SpecSelection_DESI_BGS"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_DESI_BGS"
 
     def selection(self, data):
         """The DESI BGS selection function (simplified cut)."""
@@ -704,7 +732,7 @@ class SpecSelection_DESI_BGS(SpecSelection):
 
         r = data[self.config.colnames["r"]]
 
-        bgs = (r < 19.5)
+        bgs = r < 19.5
 
         self.mask *= bgs
 
@@ -720,6 +748,8 @@ class SpecSelection_HSC(SpecSelection):
     """
 
     name = "SpecSelection_HSC"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "spec_selection_HSC"
 
     def photometryCut(self, data):
         """HSC galaxies were binned in color magnitude space with i-band mag

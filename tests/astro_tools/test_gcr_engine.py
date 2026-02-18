@@ -1,11 +1,8 @@
 """Test that the GCR Catalog Reader stage works."""
-from rail.core.stage import RailStage
-from rail.creation.engines.gcr_engine import GCRCreator
+
 import os
 
-# Allow us to overwrite the data store
-DS = RailStage.data_store
-DS.__class__.allow_overwrite = True
+from rail.creation.engines.gcr_engine import GCRCreator
 
 
 def test_GCRCreator():

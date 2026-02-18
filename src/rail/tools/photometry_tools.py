@@ -1,28 +1,26 @@
 """
 Module that implements operations on photometric data such as magnitudes and fluxes.
 """
-from abc import ABC, abstractmethod
 
 import os
+from abc import ABC, abstractmethod
+
+import hyperbolic  # https://github.com/jlvdb/hyperbolic
 import numpy as np
 import pandas as pd
 import tables_io
 from astropy.coordinates import SkyCoord
-
 from ceci.config import StageParameter as Param
+from rail.core.common_params import SHARED_PARAMS
 from rail.core.data import PqHandle
 from rail.core.stage import RailStage
-from rail.core.data import PqHandle, Hdf5Handle
-from rail.core.common_params import SHARED_PARAMS
 
-import hyperbolic  # https://github.com/jlvdb/hyperbolic
-
-dustmaps_config = tables_io.lazy_modules.lazyImport('dustmaps.config')
-dustmaps_sfd = tables_io.lazy_modules.lazyImport('dustmaps.sfd')
+dustmaps_config = tables_io.lazy_modules.lazyImport("dustmaps.config")
+dustmaps_sfd = tables_io.lazy_modules.lazyImport("dustmaps.sfd")
 
 
 # default column names in DC2
-LSST_BANDS = 'ugrizy'
+LSST_BANDS = "ugrizy"
 DEFAULT_MAG_COLS = [f"mag_{band}_lsst" for band in LSST_BANDS]
 DEFAULT_MAGERR_COLS = [f"mag_err_{band}_lsst" for band in LSST_BANDS]
 
@@ -69,31 +67,44 @@ def _compute_flux_error(flux, magnitude_error):
 
 class PhotometryManipulator(RailStage, ABC):
     """
-    Base class to perform opertations on magnitudes. A table with input magnitudes and errors is
-    processed and transformed into an output table with new magnitudes and errors.
+    Base class to perform opertations on magnitudes. A table with input magnitudes and
+    errors is processed and transformed into an output table with new magnitudes and
+    errors.
 
     Subclasses must implement the run() and compute() method.
     """
 
-    name = 'PhotometryManipulator'
+    name = "PhotometryManipulator"
+    entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "photometry_manipulator"
     config_options = RailStage.config_options.copy()
     config_options.update(
         value_columns=Param(
-            list, default=DEFAULT_MAG_COLS,
-            msg="list of columns that prove photometric measurements (fluxes or magnitudes)"),
+            list,
+            default=DEFAULT_MAG_COLS,
+            msg="list of columns that prove photometric measurements (fluxes or magnitudes)",
+        ),
         error_columns=Param(
-            list, default=DEFAULT_MAGERR_COLS,
+            list,
+            default=DEFAULT_MAGERR_COLS,
             msg="list of columns with errors corresponding to value_columns "
-                "(assuming same ordering)"),
+            "(assuming same ordering)",
+        ),
         zeropoints=Param(
-            list, default=[], required=False,
+            list,
+            default=[],
+            required=False,
             msg="optional list of magnitude zeropoints for value_columns "
-                "(assuming same ordering, defaults to 0.0)"),
+            "(assuming same ordering, defaults to 0.0)",
+        ),
         is_flux=Param(
-            bool, default=False,
-            msg="whether the provided quantities are fluxes or magnitudes"))
-    inputs = [('input', PqHandle)]
-    outputs = [('output', PqHandle)]
+            bool,
+            default=False,
+            msg="whether the provided quantities are fluxes or magnitudes",
+        ),
+    )
+    inputs = [("input", PqHandle)]
+    outputs = [("output", PqHandle)]
 
     def __init__(self, args, **kwargs):
         super().__init__(args, **kwargs)
@@ -111,19 +122,21 @@ class PhotometryManipulator(RailStage, ABC):
         n_zpt = len(self.config.zeropoints)
         if n_mag != n_err:
             raise IndexError(
-                f"number of magnitude and error columns do not match ({n_mag} != {n_err})")
+                f"number of magnitude and error columns do not match ({n_mag} != {n_err})"
+            )
         # check and zeropoints or parse default value
         if n_zpt == 0:
             self.config.zeropoints = [0.0] * n_mag
         elif n_zpt != n_mag:
             raise IndexError(
-                f"number of zeropoints and magnitude columns do not match ({n_zpt} != {n_mag})")
+                f"number of zeropoints and magnitude columns do not match ({n_zpt} != {n_mag})"
+            )
 
     def get_as_fluxes(self):
         """
         Loads specified photometric data as fluxes, converting magnitudes on the fly.
         """
-        input_data = self.get_data('input', allow_missing=True)
+        input_data = self.get_data("input", allow_missing=True)
         if self.config.is_flux:
             data = input_data[self.value_columns + self.error_columns]
         else:
@@ -131,13 +144,13 @@ class PhotometryManipulator(RailStage, ABC):
             # convert magnitudes to fluxes
             for val_name, zeropoint in zip(self.value_columns, self.zeropoints):
                 data[val_name] = _compute_flux(
-                    input_data[val_name],
-                    zeropoint=zeropoint)
+                    input_data[val_name], zeropoint=zeropoint
+                )
             # compute flux errors from magnitude errors
             for val_name, err_name in zip(self.value_columns, self.error_columns):
                 data[err_name] = _compute_flux_error(
-                    data[val_name],
-                    input_data[err_name])
+                    data[val_name], input_data[err_name]
+                )
         return data
 
     @abstractmethod
@@ -147,10 +160,10 @@ class PhotometryManipulator(RailStage, ABC):
         """
         data = self.get_as_fluxes()
         # do work
-        self.add_data('output', data)
+        self.add_data("output", data)
 
     @abstractmethod
-    def compute(self, data):  # pragma: no cover
+    def compute(self, data) -> PqHandle:  # pragma: no cover
         """
         Main method to call.
 
@@ -161,13 +174,13 @@ class PhotometryManipulator(RailStage, ABC):
 
         Returns
         -------
-        output: `PqHandle`
+        PqHandle
             Output tabular data.
         """
-        self.set_data('input', data)
+        self.set_data("input", data)
         self.run()
         self.finalize()
-        return self.get_handle('output')
+        return self.get_handle("output")
 
 
 class HyperbolicSmoothing(PhotometryManipulator):
@@ -177,10 +190,12 @@ class HyperbolicSmoothing(PhotometryManipulator):
     hyperbolic magnitudes.
     """
 
-    name = 'HyperbolicSmoothing'
+    name = "HyperbolicSmoothing"
+    entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "hyperbolic_smoothing"
     config_options = PhotometryManipulator.config_options.copy()
-    inputs = [('input', PqHandle)]
-    outputs = [('parameters', PqHandle)]
+    inputs = [("input", PqHandle)]
+    outputs = [("parameters", PqHandle)]
 
     def run(self):
         """
@@ -193,31 +208,33 @@ class HyperbolicSmoothing(PhotometryManipulator):
         # compute the optimal smoothing factor b for each photometric band
         stats = []
         for fx_col, fxerr_col, zeropoint in zip(
-                self.value_columns, self.error_columns, self.zeropoints):
+            self.value_columns, self.error_columns, self.zeropoints
+        ):
 
             # compute the median flux error and zeropoint
             stats_filt = hyperbolic.compute_flux_stats(
-                data[fx_col], data[fxerr_col], fields, zeropoint=zeropoint)
+                data[fx_col], data[fxerr_col], fields, zeropoint=zeropoint
+            )
             # compute the smoothing parameter b (in normalised flux)
             stats_filt[hyperbolic.Keys.b] = hyperbolic.estimate_b(
-                stats_filt[hyperbolic.Keys.zp],
-                stats_filt[hyperbolic.Keys.flux_err])
+                stats_filt[hyperbolic.Keys.zp], stats_filt[hyperbolic.Keys.flux_err]
+            )
             # compute the smoothing parameter b (in absolute flux)
             stats_filt[hyperbolic.Keys.b_abs] = (
-                stats_filt[hyperbolic.Keys.ref_flux] *
-                stats_filt[hyperbolic.Keys.b])
+                stats_filt[hyperbolic.Keys.ref_flux] * stats_filt[hyperbolic.Keys.b]
+            )
 
             # collect results
             stats_filt[hyperbolic.Keys.filter] = fx_col
-            stats_filt = stats_filt.reset_index().set_index([
-                hyperbolic.Keys.filter,
-                hyperbolic.Keys.field])
+            stats_filt = stats_filt.reset_index().set_index(
+                [hyperbolic.Keys.filter, hyperbolic.Keys.field]
+            )
             stats.append(stats_filt)
 
         # store resulting smoothing parameters for next stage
-        self.add_data('parameters', pd.concat(stats))
+        self.add_data("parameters", pd.concat(stats))
 
-    def compute(self, data):
+    def compute(self, data, **kwargs) -> PqHandle:
         """
         Main method to call. Computes the set of smoothing parameters (b) for an input catalogue
         with classical photometry and their respective errors. These parameters are required by the
@@ -230,13 +247,13 @@ class HyperbolicSmoothing(PhotometryManipulator):
 
         Returns
         -------
-        parameters : `PqHandle`
+        PqHandle
             Table with smoothing parameters per photometric band and additional meta data.
         """
-        self.set_data('input', data)
+        self.set_data("input", data)
         self.run()
         self.finalize()
-        return self.get_handle('parameters')
+        return self.get_handle("parameters")
 
 
 class HyperbolicMagnitudes(PhotometryManipulator):
@@ -246,11 +263,12 @@ class HyperbolicMagnitudes(PhotometryManipulator):
     parameters (b).
     """
 
-    name = 'HyperbolicMagnitudes'
+    name = "HyperbolicMagnitudes"
+    entrypoint_function = "compute"  # the user-facing science function for this class
+    interactive_function = "hyperbolic_magnitudes"
     config_options = PhotometryManipulator.config_options.copy()
-    inputs = [('input', PqHandle),
-              ('parameters', PqHandle)]
-    outputs = [('output', PqHandle)]
+    inputs = [("input", PqHandle), ("parameters", PqHandle)]
+    outputs = [("output", PqHandle)]
 
     def _check_filters(self, stats_table):
         """
@@ -274,7 +292,9 @@ class HyperbolicMagnitudes(PhotometryManipulator):
         filter_diff = config_filters - param_filters
         if len(filter_diff) != 0:
             strdiff = ", ".join(sorted(filter_diff))
-            raise KeyError(f"parameter table contains no smoothing parameters for: {strdiff}")
+            raise KeyError(
+                f"parameter table contains no smoothing parameters for: {strdiff}"
+            )
 
     def run(self):
         """
@@ -283,16 +303,21 @@ class HyperbolicMagnitudes(PhotometryManipulator):
         """
         # get input data
         data = self.get_as_fluxes()
-        stats = self.get_data('parameters', allow_missing=True)
+        stats = self.get_data("parameters", allow_missing=True)
         self._check_filters(stats)
-        fields = np.zeros(len(data), dtype=int)  # placeholder for variable field/pointing depth
+        fields = np.zeros(
+            len(data), dtype=int
+        )  # placeholder for variable field/pointing depth
 
         # intialise the output data
         output = pd.DataFrame(index=data.index)  # allows joining on input
 
         # compute smoothing parameter b
-        b = stats[hyperbolic.Keys.b].groupby(  # median flux error in each filter
-            hyperbolic.Keys.filter).agg(np.nanmedian)
+        b = (
+            stats[hyperbolic.Keys.b]
+            .groupby(hyperbolic.Keys.filter)  # median flux error in each filter
+            .agg(np.nanmedian)
+        )
         b = b.to_dict()
 
         # hyperbolic magnitudes
@@ -302,15 +327,16 @@ class HyperbolicMagnitudes(PhotometryManipulator):
 
             # map reference flux from fields/pointings to sources
             ref_flux_per_source = hyperbolic.fields_to_source(
-                stats_filt[hyperbolic.Keys.ref_flux], fields, index=data.index)
+                stats_filt[hyperbolic.Keys.ref_flux], fields, index=data.index
+            )
             norm_flux = data[val_col] / ref_flux_per_source
             norm_flux_err = data[err_col] / ref_flux_per_source
 
             # compute the hyperbolic magnitudes
-            hyp_mag = hyperbolic.compute_magnitude(
-                norm_flux, b[val_col])
+            hyp_mag = hyperbolic.compute_magnitude(norm_flux, b[val_col])
             hyp_mag_err = hyperbolic.compute_magnitude_error(
-                norm_flux, b[val_col], norm_flux_err)
+                norm_flux, b[val_col], norm_flux_err
+            )
 
             # add data to catalogue
             key_mag = val_col.replace("mag_", "mag_hyp_")
@@ -319,9 +345,9 @@ class HyperbolicMagnitudes(PhotometryManipulator):
             output[key_mag_err] = hyp_mag_err
 
         # store results
-        self.add_data('output', output)
+        self.add_data("output", output)
 
-    def compute(self, data, parameters):
+    def compute(self, data, parameters, **kwargs) -> PqHandle:
         """
         Main method to call. Outputs hyperbolic magnitudes compuated from a set of smoothing
         parameters and input catalogue with classical magitudes and their respective errors.
@@ -337,16 +363,16 @@ class HyperbolicMagnitudes(PhotometryManipulator):
 
         Returns
         -------
-        output: `PqHandle`
+        PqHandle
             Output table containting hyperbolic magnitudes and their uncertainties. If the columns
             in the input table contain a prefix `mag_`, this output tabel will replace the prefix
             with `hyp_mag_`, otherwise the column names will be identical to the input table.
         """
-        self.set_data('input', data)
-        self.set_data('parameters', parameters)
+        self.set_data("input", data)
+        self.set_data("parameters", parameters)
         self.run()
         self.finalize()
-        return self.get_handle('output')
+        return self.get_handle("output")
 
 
 class LSSTFluxToMagConverter(RailStage):
@@ -355,46 +381,69 @@ class LSSTFluxToMagConverter(RailStage):
     Note, this is hardwired to take parquet files as input
     and provide hdf5 files as output
     """
-    name = 'LSSTFluxToMagConverter'
+
+    name = "LSSTFluxToMagConverter"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "lsst_flux_to_mag_converter"
 
     config_options = RailStage.config_options.copy()
     config_options.update(
-        bands=Param(list, default=['u', 'g', 'r', 'i', 'z', 'y'], msg="Names of the bands"),
-        flux_name=Param(str, default="{band}_gaap1p0Flux", msg="Template for band names"),
-        flux_err_name=Param(str, default="{band}_gaap1p0FluxErr", msg="Template for band error column names"),
-        mag_name=Param(str, default="mag_{band}_lsst", msg="Template for magnitude column names"),
-        mag_err_name=Param(str, default="mag_err_{band}_lsst", msg="Template for magnitude error column names"),
+        bands=Param(
+            list, default=["u", "g", "r", "i", "z", "y"], msg="Names of the bands"
+        ),
+        flux_name=Param(
+            str, default="{band}_gaap1p0Flux", msg="Template for band names"
+        ),
+        flux_err_name=Param(
+            str,
+            default="{band}_gaap1p0FluxErr",
+            msg="Template for band error column names",
+        ),
+        mag_name=Param(
+            str, default="mag_{band}_lsst", msg="Template for magnitude column names"
+        ),
+        mag_err_name=Param(
+            str,
+            default="mag_err_{band}_lsst",
+            msg="Template for magnitude error column names",
+        ),
         copy_cols=Param(dict, default={}, msg="Map of other columns to copy"),
         mag_offset=Param(float, default=31.4, msg="Magntidue offset value"),
     )
 
-    mag_conv = np.log(10)*0.4
+    mag_conv = np.log(10) * 0.4
 
-    inputs = [('input', PqHandle)]
-    outputs = [('output', PqHandle)]
+    inputs = [("input", PqHandle)]
+    outputs = [("output", PqHandle)]
 
     def _flux_to_mag(self, flux_vals):
-        vals = -2.5*np.log10(flux_vals) + self.config.mag_offset
+        vals = -2.5 * np.log10(flux_vals) + self.config.mag_offset
         return np.where(np.isfinite(vals), vals, np.nan)
 
     def _flux_err_to_mag_err(self, flux_vals, flux_err_vals):
-        return flux_err_vals / (flux_vals*self.mag_conv)
+        return flux_err_vals / (flux_vals * self.mag_conv)
 
     def run(self):
-        data = self.get_data('input', allow_missing=True)
+        data = self.get_data("input", allow_missing=True)
         out_data = {}
-        const = np.log(10.)*0.4
+        const = np.log(10.0) * 0.4
 
         for band_ in self.config.bands:
             flux_col_name = self.config.flux_name.format(band=band_)
             flux_err_col_name = self.config.flux_err_name.format(band=band_)
-            out_data[self.config.mag_name.format(band=band_)] = self._flux_to_mag(data[flux_col_name].values)
-            out_data[self.config.mag_err_name.format(band=band_)] = self._flux_err_to_mag_err(data[flux_col_name].values, data[flux_err_col_name].values)
+            out_data[self.config.mag_name.format(band=band_)] = self._flux_to_mag(
+                data[flux_col_name].values
+            )
+            out_data[self.config.mag_err_name.format(band=band_)] = (
+                self._flux_err_to_mag_err(
+                    data[flux_col_name].values, data[flux_err_col_name].values
+                )
+            )
         for key, val in self.config.copy_cols.items():  # pragma: no cover
             out_data[key] = data[val].values
-        self.add_data('output', out_data)
+        self.add_data("output", out_data)
 
-    def __call__(self, data):
+    def __call__(self, data, **kwargs) -> PqHandle:
         """Return a converted table
 
         Parameters
@@ -404,93 +453,104 @@ class LSSTFluxToMagConverter(RailStage):
 
         Returns
         -------
-        out_data : table-like
+        PqHandle
             The converted version of the table
         """
-        self.set_data('input', data)
+        self.set_data("input", data)
         self.run()
-        return self.get_handle('output')
+        return self.get_handle("output")
 
 
 class DustMapBase(RailStage):
     """Utility stage that does dereddening
-    
-    Note: set copy_all_cols=True to copy all 
+
+    Note: set copy_all_cols=True to copy all
     columns in data, copy_cols will be ignored
     """
-    name = 'DustMapBase'
+
+    name = "DustMapBase"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "dust_map_base"
 
     config_options = RailStage.config_options.copy()
     config_options.update(
-        ra_name=Param(str, default='ra', msg="Name of the RA column"),
-        dec_name=Param(str, default='dec', msg="Name of the DEC column"),
-        mag_name=Param(str, default="mag_{band}_lsst", msg="Template for the magnitude columns"),
+        ra_name=Param(str, default="ra", msg="Name of the RA column"),
+        dec_name=Param(str, default="dec", msg="Name of the DEC column"),
+        mag_name=Param(
+            str, default="mag_{band}_lsst", msg="Template for the magnitude columns"
+        ),
         band_a_env=SHARED_PARAMS,
-        dustmap_name=Param(str, default='sfd', msg="Name of the dustmap in question"),
+        dustmap_name=Param(str, default="sfd", msg="Name of the dustmap in question"),
         dustmap_dir=Param(str, required=True, msg="Directory with dustmaps"),
         copy_cols=Param(list, default=[], msg="Additional columns to copy"),
         copy_all_cols=Param(bool, default=False, msg="Copy all the columns"),
     )
-        
-    inputs = [('input', PqHandle)]
-    outputs = [('output', PqHandle)]
+
+    inputs = [("input", PqHandle)]
+    outputs = [("output", PqHandle)]
 
     def fetch_map(self):
         dust_map_dict = dict(sfd=dustmaps_sfd)
         try:
             dust_map_submod = dust_map_dict[self.config.dustmap_name]
         except KeyError as msg:  # pragma: no cover
-            raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
+            raise KeyError(
+                f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}"
+            ) from msg
 
         dustmap_dir = os.path.expandvars(self.config.dustmap_dir)
         dustmap_path = os.path.join(dustmap_dir, self.config.dustmap_name)
         if os.path.exists(dustmap_path):  # pragma: no cover
             # already downloaded, return
             return
-        
+
         dust_map_config = dustmaps_config.config
         # dust_map_config['data_dir'] = self.config.dustmap_dir
-        dust_map_config['data_dir'] = dustmap_dir
+        dust_map_config["data_dir"] = dustmap_dir
         fetch_func = dust_map_submod.fetch
         fetch_func()
-        
 
     def run(self):
-        data = self.get_data('input', allow_missing=True)
+        data = self.get_data("input", allow_missing=True)
+        self.fetch_map()
         out_data = {}
         coords = SkyCoord(
             np.array(data[self.config.ra_name]),
             np.array(data[self.config.dec_name]),
-            unit = 'deg',frame='fk5')
+            unit="deg",
+            frame="fk5",
+        )
         dust_map_dict = dict(sfd=dustmaps_sfd.SFDQuery)
         try:
             dust_map_class = dust_map_dict[self.config.dustmap_name]
             dust_map_config = dustmaps_config.config
-            dust_map_config['data_dir'] = self.config.dustmap_dir
+            dust_map_config["data_dir"] = self.config.dustmap_dir
             dust_map = dust_map_class()
         except KeyError as msg:  # pragma: no cover
-            raise KeyError(f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}") from msg
+            raise KeyError(
+                f"Unknown dustmap {self.config.dustmap_name}, options are {list(dust_map_dict.keys())}"
+            ) from msg
         ebvvec = dust_map(coords)
-        band_mag_name_list=[]
+        band_mag_name_list = []
         for band_mag_name, a_env_value in self.config.band_a_env.items():
             mag_vals = data[band_mag_name]
             out_data[band_mag_name] = self._calc_values(mag_vals, ebvvec, a_env_value)
             band_mag_name_list.append(band_mag_name)
-       
+
         # check if copy_all_cols set to true:
-        if self.config.copy_all_cols==False: # pragma: no cover
+        if self.config.copy_all_cols is False:  # pragma: no cover
             for col_ in self.config.copy_cols:  # pragma: no cover
                 out_data[col_] = data[col_]
-        elif self.config.copy_all_cols==True: # pragma: no cover
+        elif self.config.copy_all_cols is True:  # pragma: no cover
             for col_ in data:
                 # make sure we do not overwrite the photometry columns
                 if col_ not in band_mag_name_list:
                     out_data[col_] = data[col_]
 
         out_data_pd = pd.DataFrame(out_data)
-        self.add_data('output', out_data_pd)
+        self.add_data("output", out_data_pd)
 
-    def __call__(self, data):
+    def __call__(self, data, **kwargs) -> PqHandle:
         """Return a converted table
 
         Parameters
@@ -500,29 +560,31 @@ class DustMapBase(RailStage):
 
         Returns
         -------
-        out_data : table-like
+        PqHandle
             The converted version of the table
         """
-        self.set_data('input', data)
+        self.set_data("input", data)
         self.run()
-        return self.get_handle('output')
+        return self.get_handle("output")
 
 
 class Dereddener(DustMapBase):
-    """Utility stage that does dereddening
-    
-    """
-    name = 'Dereddener'
+    """Utility stage that does dereddening"""
+
+    name = "Dereddener"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "dereddener"
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
-        return mag_vals - ebvvec*band_a_env
-    
+        return mag_vals - ebvvec * band_a_env
+
 
 class Reddener(DustMapBase):
-    """Utility stage that does reddening
-    
-    """
-    name = 'Reddener'
+    """Utility stage that does reddening"""
+
+    name = "Reddener"
+    entrypoint_function = "__call__"  # the user-facing science function for this class
+    interactive_function = "reddener"
 
     def _calc_values(self, mag_vals, ebvvec, band_a_env):
-        return mag_vals + ebvvec*band_a_env
+        return mag_vals + ebvvec * band_a_env

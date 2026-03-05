@@ -1,6 +1,7 @@
 """Unit tests for rail.tools.sacc_tools."""
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -50,6 +51,24 @@ def _make_qp_hist_file(tmpdir, edges, pdfs, filename="bin_0.hdf5"):
     """Write a qp histogram ensemble to file."""
     pdfs_norm = normalize_hist(pdfs, edges)
     ens = qp.Ensemble(qp.hist, data={"bins": edges, "pdfs": pdfs_norm})
+    path = Path(tmpdir) / filename
+    ens.write_to(str(path))
+    return str(path)
+
+
+def _make_qp_interp_file(tmpdir, edges, pdfs, filename="interp.hdf5"):
+    """Write a qp interpolated ensemble to file (xvals in metadata, yvals in objdata)."""
+    # qp.interp: xvals = grid (edges), yvals = values at each grid point, shape (n_samples, len(xvals))
+    xvals = np.array(edges, dtype=float)
+    yvals = np.atleast_2d(pdfs)
+    if yvals.shape[1] == len(xvals) - 1:
+        # PDFs at bin centers; extend to edges: [p0, (p0+p1)/2, ..., (pn-2+pn-1)/2, pn-1]
+        yvals_padded = np.zeros((yvals.shape[0], len(xvals)))
+        yvals_padded[:, 0] = yvals[:, 0]
+        yvals_padded[:, -1] = yvals[:, -1]
+        yvals_padded[:, 1:-1] = 0.5 * (yvals[:, :-1] + yvals[:, 1:])
+        yvals = yvals_padded
+    ens = qp.Ensemble(qp.interp, data={"xvals": xvals, "yvals": yvals})
     path = Path(tmpdir) / filename
     ens.write_to(str(path))
     return str(path)
@@ -171,6 +190,72 @@ def test_extract_tomographic_bins_skips_non_qpnz(edges, pdfs_2d):
     assert "nz_only_tracer" not in labels
 
 
+def test_extract_tomographic_bins_edges_from_metadata(edges, pdfs_2d):
+    """Tracer with bins in metadata (not objdata) extracts correctly."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    # Replace ensemble with one that has bins in metadata
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+    mock_ens.metadata = {"bins": edges}
+    tracer.ensemble = mock_ens
+    tomos, edges_lookup = extract_tomographic_bins_from_sacc(catalog)
+    assert len(tomos) == 1
+    np.testing.assert_array_almost_equal(edges_lookup["bin_0"], edges)
+
+
+def test_extract_tomographic_bins_estimate_edges_from_z(edges, pdfs_2d):
+    """Tracer with no bins in objdata/metadata estimates edges from z."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+    mock_ens.metadata = {}
+    tracer.ensemble = mock_ens
+    tomos, edges_lookup = extract_tomographic_bins_from_sacc(catalog)
+    assert len(tomos) == 1
+    assert "bin_0" in edges_lookup
+    assert len(edges_lookup["bin_0"]) == len(edges)
+
+
+def test_extract_tomographic_bins_no_ensemble_fallback(edges, pdfs_2d):
+    """Tracer without ensemble uses nz fallback."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    tracer.ensemble = None
+    tomos, edges_lookup = extract_tomographic_bins_from_sacc(catalog)
+    assert len(tomos) == 1
+    assert tomos[0]["label"] == "bin_0"
+    assert "truth" in tomos[0]
+
+
+def test_extract_tomographic_bins_single_z_estimates_edges(edges, pdfs_2d):
+    """Tracer with single z point uses fallback edges [z-0.01, z+0.01]."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {}
+    mock_ens.metadata = {}
+    tracer.z = np.array([0.5])
+    tracer.ensemble = mock_ens
+    tomos, edges_lookup = extract_tomographic_bins_from_sacc(catalog)
+    assert len(tomos) == 1
+    assert len(edges_lookup["bin_0"]) == 2
+
+
+def test_extract_tomographic_bins_pdfs_fallback_from_nz(edges):
+    """Tracer with ensemble without pdfs uses nz fallback."""
+    catalog = _make_sacc_catalog(edges, [np.ones((1, 5))], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"bins": edges}
+    mock_ens.metadata = {}
+    tracer.ensemble = mock_ens
+    tomos, _ = extract_tomographic_bins_from_sacc(catalog)
+    assert len(tomos) == 1
+    assert tomos[0]["estimates"].shape == (1, 5)
+
+
 # --- Tests for QPToSACC ---
 
 
@@ -185,6 +270,38 @@ def test_qp_to_sacc_single_file(edges, pdfs_2d):
         assert len(catalog.tracers) == 1
         assert "bin_0" in catalog.tracers
         assert catalog.tracers["bin_0"].tracer_type == "QPNZ"
+
+
+def test_qp_to_sacc_single_string_input(edges, pdfs_2d):
+    """Single string path (not list) triggers qp_files = [qp_input_data] branch."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        qp_path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "single.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+        stage.set_data("qp_input", qp_path)
+        orig_get_data = stage.get_data
+
+        def mock_get_data(tag, allow_missing=False):
+            if tag == "qp_input":
+                return qp_path
+            return orig_get_data(tag, allow_missing)
+
+        with patch.object(stage, "get_data", side_effect=mock_get_data):
+            stage.run()
+        handle = stage.get_handle("sacc_output")
+        catalog = handle.data
+        assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_tracer_name_inference_no_bin_in_filename(edges, pdfs_2d):
+    """Filename without 'bin' infers tracer name as bin_{i}."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "galaxy_spec.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc")
+        handle = stage([path])
+        catalog = handle.data
+        assert len(catalog.tracers) == 1
+        inferred = list(catalog.tracers.keys())[0]
+        assert inferred == "bin_0"
 
 
 def test_qp_to_sacc_list_of_files(edges, pdfs_2d):
@@ -281,6 +398,126 @@ def test_qp_to_sacc_unsupported_input_type():
     stage = QPToSACC.make_stage(name="qp_to_sacc")
     with pytest.raises(ValueError, match="Unsupported input format"):
         stage(12345)
+
+
+def test_qp_to_sacc_interpolated_format(edges, pdfs_2d):
+    """QP file with interpolated format (xvals/yvals) converts correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        qp_path = _make_qp_interp_file(tmpdir, edges, pdfs_2d, "interp.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+        handle = stage([qp_path])
+        catalog = handle.data
+        assert len(catalog.tracers) == 1
+        assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_interpolated_format_1d_yvals(edges, pdfs_1d):
+    """QP file with 1D yvals (single sample) converts correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        xvals = np.array(edges, dtype=float)
+        yvals_1d = np.concatenate([[pdfs_1d[0]], 0.5 * (pdfs_1d[:-1] + pdfs_1d[1:]), [pdfs_1d[-1]]])
+        ens = qp.Ensemble(qp.interp, data={"xvals": xvals, "yvals": yvals_1d})
+        qp_path = str(Path(tmpdir) / "interp_1d.hdf5")
+        ens.write_to(qp_path)
+        stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+        handle = stage([qp_path])
+        catalog = handle.data
+        assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_truth_interpolated_format(edges, pdfs_2d, pdfs_1d):
+    """Truth file in interpolated format sets tracer nz correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        qp_path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "estimates.hdf5")
+        truth_path = _make_qp_interp_file(tmpdir, edges, pdfs_1d, "truth_interp.hdf5")
+        stage = QPToSACC.make_stage(
+            name="qp_to_sacc",
+            tracer_names=["bin_0"],
+            truth_files=[truth_path],
+        )
+        handle = stage([qp_path])
+        catalog = handle.data
+        tracer = catalog.tracers["bin_0"]
+        assert hasattr(tracer, "nz") and tracer.nz is not None
+
+
+def test_qp_to_sacc_tracer_name_inference_bin_no_underscore(edges, pdfs_2d):
+    """Filename 'bin0.hdf5' (no underscore) infers tracer name."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin0.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc")
+        handle = stage([path])
+        catalog = handle.data
+        assert len(catalog.tracers) == 1
+        inferred = list(catalog.tracers.keys())[0]
+        assert inferred in ("0", "bin_0", "bin0")
+
+
+def test_qp_to_sacc_path_object_input(edges, pdfs_2d):
+    """Path object (not str) as input works via str()."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(_make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5"))
+        stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+        handle = stage([path])
+        catalog = handle.data
+        assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_pathlike_object_input(edges, pdfs_2d):
+    """Object with __str__ returning path (not str/Path) works via str()."""
+
+    class PathLike:
+        def __init__(self, path):
+            self.path = path
+
+        def __str__(self):
+            return self.path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path_str = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
+        pathlike = PathLike(path_str)
+        stage = QPToSACC.make_stage(name="qp_to_sacc")
+        handle = stage([pathlike])
+        catalog = handle.data
+        assert len(catalog.tracers) == 1
+
+
+def test_qp_to_sacc_invalid_qp_format_raises(edges):
+    """QP file with unrecognized format (no pdfs, no xvals/yvals) raises ValueError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, np.ones((1, 5)), "dummy.hdf5")
+        mock_ens = MagicMock()
+        mock_ens.objdata = {}
+        mock_ens.metadata = {}
+
+        with pytest.raises(ValueError, match="Could not find PDFs"):
+            with patch("rail.tools.sacc_tools.qp.read", return_value=mock_ens):
+                stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+                stage([path])
+
+
+def test_qp_to_sacc_pdfs_but_no_bins_raises(edges, pdfs_2d):
+    """QP file with pdfs in objdata but no bins in objdata or metadata raises ValueError."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "dummy.hdf5")
+        mock_ens = MagicMock()
+        mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+        mock_ens.metadata = {}
+
+        with pytest.raises(ValueError, match="Could not find bin edges"):
+            with patch("rail.tools.sacc_tools.qp.read", return_value=mock_ens):
+                stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+                stage([path])
+
+
+def test_qp_to_sacc_single_pdf_1d_reshape(edges, pdfs_1d):
+    """QP file with 1D pdfs triggers reshape to 2D."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_1d, "single.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+        handle = stage([path])
+        catalog = handle.data
+        assert "bin_0" in catalog.tracers
 
 
 # --- Tests for SACCToQP ---
@@ -405,6 +642,194 @@ def test_sacc_to_qp_unsupported_input_type():
         stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
         with pytest.raises(ValueError, match="Unsupported input format"):
             stage(12345)
+
+
+def test_sacc_to_qp_no_qpnz_tracers(edges):
+    """Empty catalog or no QPNZ tracers raises ValueError."""
+    catalog = sacc.Sacc()
+    z = 0.5 * (edges[:-1] + edges[1:])
+    nz = np.ones(len(z)) / len(z)
+    try:
+        catalog.add_tracer("NZ", "nz_only", z=z, nz=nz)
+    except (TypeError, ValueError):
+        pytest.skip("sacc may not support NZ tracer without ensemble")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        with pytest.raises(ValueError, match="No QPNZ tracers"):
+            stage(catalog)
+
+
+def test_sacc_to_qp_non_qpnz_tracer_requested(edges, pdfs_2d):
+    """Requesting a non-QPNZ tracer by name raises ValueError."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    z = 0.5 * (edges[:-1] + edges[1:])
+    nz = np.ones(len(z)) / len(z)
+    try:
+        catalog.add_tracer("NZ", "nz_only", z=z, nz=nz)
+    except (TypeError, ValueError):
+        pytest.skip("sacc may not support NZ tracer separately")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(
+            name="sacc_to_qp",
+            output_dir=tmpdir,
+            tracer_names=["nz_only"],
+        )
+        with pytest.raises(ValueError, match="not a QPNZ tracer"):
+            stage(catalog)
+
+
+def test_sacc_to_qp_prefix_without_trailing_underscore(edges, pdfs_2d):
+    """output_prefix without trailing _ gets one added."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(
+            name="sacc_to_qp",
+            output_dir=tmpdir,
+            output_prefix="nz",
+        )
+        handle = stage(catalog)
+        path = Path(handle.data)
+        assert path.name == "nz_bin_0.hdf5"
+
+
+def test_sacc_to_qp_tracer_no_ensemble(edges, pdfs_2d):
+    """Tracer without ensemble raises ValueError."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    catalog.tracers["bin_0"].ensemble = None
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        with pytest.raises(ValueError, match="does not have an ensemble"):
+            stage(catalog)
+
+
+def test_sacc_to_qp_bins_in_objdata(edges, pdfs_2d):
+    """Tracer with bins in objdata uses objdata for edges and pdfs."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {
+        "bins": edges,
+        "pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges)),
+    }
+    mock_ens.metadata = {}
+    tracer.ensemble = mock_ens
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        handle = stage(catalog)
+        assert Path(handle.data).exists()
+
+
+def test_sacc_to_qp_bins_in_metadata(edges, pdfs_2d):
+    """Tracer with bins in metadata (not objdata) extracts correctly."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+    mock_ens.metadata = {"bins": edges}
+    tracer.ensemble = mock_ens
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        handle = stage(catalog)
+        assert Path(handle.data).exists()
+
+
+def test_sacc_to_qp_missing_pdfs_bins_in_metadata_raises(edges, pdfs_2d):
+    """Tracer ensemble with bins in metadata but no pdfs in objdata raises ValueError."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {}
+    mock_ens.metadata = {"bins": edges}
+    tracer.ensemble = mock_ens
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        with pytest.raises(ValueError, match="Could not find pdfs"):
+            stage(catalog)
+
+
+def test_sacc_to_qp_missing_pdfs_bins_in_objdata_raises(edges, pdfs_2d):
+    """Tracer ensemble with bins in objdata but no pdfs raises ValueError."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"bins": edges}
+    mock_ens.metadata = {}
+    tracer.ensemble = mock_ens
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        with pytest.raises(ValueError, match="Could not find pdfs"):
+            stage(catalog)
+
+
+def test_sacc_to_qp_no_bins_raises(edges, pdfs_2d):
+    """Tracer ensemble without bins in objdata or metadata raises ValueError."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    tracer = catalog.tracers["bin_0"]
+    mock_ens = MagicMock()
+    mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+    mock_ens.metadata = {}
+    tracer.ensemble = mock_ens
+    with tempfile.TemporaryDirectory() as tmpdir:
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+        with pytest.raises(ValueError, match="Could not extract bins"):
+            stage(catalog)
+
+
+def test_qp_to_sacc_bins_in_objdata(edges, pdfs_2d):
+    """QP file with bins in objdata uses objdata for edges."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
+        mock_ens = MagicMock()
+        mock_ens.objdata = {
+            "bins": edges,
+            "pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges)),
+        }
+        mock_ens.metadata = {}
+        with patch("rail.tools.sacc_tools.qp.read", return_value=mock_ens):
+            stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+            handle = stage([path])
+            catalog = handle.data
+            assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_bins_in_metadata_not_objdata(edges, pdfs_2d):
+    """QP file with pdfs in objdata but bins only in metadata uses metadata."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
+        mock_ens = MagicMock()
+        mock_ens.objdata = {"pdfs": np.atleast_2d(normalize_hist(pdfs_2d, edges))}
+        mock_ens.metadata = {"bins": edges}
+        with patch("rail.tools.sacc_tools.qp.read", return_value=mock_ens):
+            stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
+            handle = stage([path])
+            catalog = handle.data
+            assert "bin_0" in catalog.tracers
+
+
+def test_qp_to_sacc_tracer_name_inference_with_underscore(edges, pdfs_2d):
+    """Filename 'bin_0.hdf5' infers tracer name from stem split."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
+        stage = QPToSACC.make_stage(name="qp_to_sacc")
+        handle = stage([path])
+        catalog = handle.data
+        assert len(catalog.tracers) == 1
+        # With "bin_0", split("_")[-1] gives "0"
+        assert list(catalog.tracers.keys())[0] in ("0", "bin_0")
+
+
+def test_sacc_to_qp_run_receives_string_path(edges, pdfs_2d):
+    """run() with string path from get_data loads via load_fits."""
+    catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sacc_path = Path(tmpdir) / "catalog.fits"
+        catalog.save_fits(str(sacc_path), overwrite=True)
+        stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
+
+        with patch.object(stage, "get_data", return_value=str(sacc_path)):
+            stage.run()
+        handle = stage.get_handle("qp_output")
+        assert Path(handle.data).exists()
 
 
 # --- Round-trip test ---

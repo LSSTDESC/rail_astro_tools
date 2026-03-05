@@ -7,6 +7,7 @@ import pytest
 import qp
 import sacc
 
+from rail.core.data import DataStore
 from rail.core.stage import RailStage
 from rail.tools.sacc_tools import (
     QPToSACC,
@@ -15,8 +16,8 @@ from rail.tools.sacc_tools import (
     normalize_hist,
 )
 
-DS = RailStage.data_store
-DS.__class__.allow_overwrite = True
+# pz-rail-base>=2.0 uses per-stage DataStore; allow overwrite for tests
+DataStore.allow_overwrite = True
 
 
 # --- Fixtures for synthetic data ---
@@ -175,7 +176,6 @@ def test_extract_tomographic_bins_skips_non_qpnz(edges, pdfs_2d):
 
 def test_qp_to_sacc_single_file(edges, pdfs_2d):
     """Single qp file (str) -> sacc with 1 QPNZ tracer."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         qp_path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "single.hdf5")
         stage = QPToSACC.make_stage(name="qp_to_sacc", tracer_names=["bin_0"])
@@ -189,7 +189,6 @@ def test_qp_to_sacc_single_file(edges, pdfs_2d):
 
 def test_qp_to_sacc_list_of_files(edges, pdfs_2d):
     """List of qp files with tracer_names -> sacc with multiple tracers."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = [
             _make_qp_hist_file(tmpdir, edges, pdfs_2d, f"bin_{i}.hdf5")
@@ -208,7 +207,6 @@ def test_qp_to_sacc_list_of_files(edges, pdfs_2d):
 
 def test_qp_to_sacc_dict_input(edges, pdfs_2d):
     """Dict input {tracer_name: path} uses keys as tracer names."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         d = {
             "alpha": _make_qp_hist_file(tmpdir, edges, pdfs_2d, "a.hdf5"),
@@ -222,7 +220,6 @@ def test_qp_to_sacc_dict_input(edges, pdfs_2d):
 
 def test_qp_to_sacc_tracer_name_inference(edges, pdfs_2d):
     """Omit tracer_names; infer from filenames like bin_0.hdf5."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
         stage = QPToSACC.make_stage(name="qp_to_sacc")
@@ -235,7 +232,6 @@ def test_qp_to_sacc_tracer_name_inference(edges, pdfs_2d):
 
 def test_qp_to_sacc_with_truth_files(edges, pdfs_2d, pdfs_1d):
     """Truth files optional -> tracer nz set from truth."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         qp_path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "estimates.hdf5")
         truth_path = _make_qp_hist_file(tmpdir, edges, pdfs_1d, "truth.hdf5")
@@ -253,7 +249,6 @@ def test_qp_to_sacc_with_truth_files(edges, pdfs_2d, pdfs_1d):
 
 def test_qp_to_sacc_tracer_names_mismatch(edges, pdfs_2d):
     """tracer_names length mismatch raises ValueError."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = [
             _make_qp_hist_file(tmpdir, edges, pdfs_2d, f"bin_{i}.hdf5")
@@ -269,7 +264,6 @@ def test_qp_to_sacc_tracer_names_mismatch(edges, pdfs_2d):
 
 def test_qp_to_sacc_truth_files_mismatch(edges, pdfs_2d):
     """truth_files length mismatch raises ValueError."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "bin_0.hdf5")
         truth = _make_qp_hist_file(tmpdir, edges, pdfs_2d[0], "truth.hdf5")
@@ -284,7 +278,6 @@ def test_qp_to_sacc_truth_files_mismatch(edges, pdfs_2d):
 
 def test_qp_to_sacc_unsupported_input_type():
     """Unsupported input type raises ValueError."""
-    DS.clear()
     stage = QPToSACC.make_stage(name="qp_to_sacc")
     with pytest.raises(ValueError, match="Unsupported input format"):
         stage(12345)
@@ -295,7 +288,6 @@ def test_qp_to_sacc_unsupported_input_type():
 
 def test_sacc_to_qp_in_memory(edges, pdfs_2d):
     """In-memory sacc object -> qp files."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(
@@ -312,7 +304,6 @@ def test_sacc_to_qp_in_memory(edges, pdfs_2d):
 
 def test_sacc_to_qp_file_path(edges, pdfs_2d):
     """File path string -> load and convert."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         sacc_path = Path(tmpdir) / "catalog.fits"
@@ -324,7 +315,6 @@ def test_sacc_to_qp_file_path(edges, pdfs_2d):
 
 def test_sacc_to_qp_multiple_tracers(edges, pdfs_2d):
     """Multiple tracers -> one qp file per tracer."""
-    DS.clear()
     pdfs_b = np.ones((2, 5))
     catalog = _make_sacc_catalog(
         edges,
@@ -343,7 +333,6 @@ def test_sacc_to_qp_multiple_tracers(edges, pdfs_2d):
 
 def test_sacc_to_qp_single_tracer_returns_path(edges, pdfs_2d):
     """Single tracer: output is path string, not dict."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
@@ -353,7 +342,6 @@ def test_sacc_to_qp_single_tracer_returns_path(edges, pdfs_2d):
 
 def test_sacc_to_qp_output_dir_and_prefix(edges, pdfs_2d):
     """output_dir and output_prefix applied correctly."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         out_subdir = Path(tmpdir) / "subdir"
@@ -370,7 +358,6 @@ def test_sacc_to_qp_output_dir_and_prefix(edges, pdfs_2d):
 
 def test_sacc_to_qp_include_truth_false(edges, pdfs_2d):
     """include_truth=False -> no nz_truth in output metadata."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(
@@ -385,7 +372,6 @@ def test_sacc_to_qp_include_truth_false(edges, pdfs_2d):
 
 def test_sacc_to_qp_include_truth_true(edges, pdfs_2d):
     """include_truth=True runs successfully; qp does not persist custom metadata."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(
@@ -402,7 +388,6 @@ def test_sacc_to_qp_include_truth_true(edges, pdfs_2d):
 
 def test_sacc_to_qp_tracer_not_found(edges, pdfs_2d):
     """Requested tracer not in catalog -> ValueError."""
-    DS.clear()
     catalog = _make_sacc_catalog(edges, [pdfs_2d], ["bin_0"])
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(
@@ -416,7 +401,6 @@ def test_sacc_to_qp_tracer_not_found(edges, pdfs_2d):
 
 def test_sacc_to_qp_unsupported_input_type():
     """Unsupported input type -> ValueError."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         stage = SACCToQP.make_stage(name="sacc_to_qp", output_dir=tmpdir)
         with pytest.raises(ValueError, match="Unsupported input format"):
@@ -428,7 +412,6 @@ def test_sacc_to_qp_unsupported_input_type():
 
 def test_round_trip_qp_sacc_qp(edges, pdfs_2d):
     """QP -> SACC -> QP round-trip preserves PDFs."""
-    DS.clear()
     with tempfile.TemporaryDirectory() as tmpdir:
         orig_path = _make_qp_hist_file(tmpdir, edges, pdfs_2d, "orig.hdf5")
         qp_to_sacc = QPToSACC.make_stage(

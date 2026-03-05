@@ -52,6 +52,8 @@ class TruthToObservedPipeline(RailPipeline):
 
         if models_to_run_select is None:
             models_to_run_select = []
+        elif 'all' in models_to_run_select: # pragma: no cover
+            models_to_run_select = list(error_models.keys())
 
         config_pars = CommonConfigParams.copy()
         config_pars["colnames"] = full_rename_dict.copy()

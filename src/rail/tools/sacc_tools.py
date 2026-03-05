@@ -335,10 +335,14 @@ class QPToSACC(RailStage):
                         truth_yvals = np.array(truth_ensemble.objdata["yvals"], dtype=float)
                         if truth_yvals.ndim == 1:
                             truth_yvals = truth_yvals.reshape(1, -1)
-                        # Interpolate to match edges
-                        truth_pdf = np.mean(truth_yvals, axis=0)
-                        # Interpolate to edges
-                        truth_pdf = np.interp(z_centers, 0.5 * (truth_xvals[:-1] + truth_xvals[1:]), truth_pdf, left=0.0, right=0.0)
+                        # Values at bin centers (yvals are at grid points)
+                        truth_centers = 0.5 * (truth_yvals[:, :-1] + truth_yvals[:, 1:])
+                        truth_pdf = np.mean(truth_centers, axis=0)
+                        # Interpolate to match our z_centers
+                        truth_x_centers = 0.5 * (truth_xvals[:-1] + truth_xvals[1:])
+                        truth_pdf = np.interp(
+                            z_centers, truth_x_centers, truth_pdf, left=0.0, right=0.0
+                        )
                         nz_truth = normalize_hist(truth_pdf, edges)
 
             # Add tracer to catalog

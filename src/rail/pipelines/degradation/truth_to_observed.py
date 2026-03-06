@@ -52,6 +52,8 @@ class TruthToObservedPipeline(RailPipeline):
 
         if models_to_run_select is None:
             models_to_run_select = []
+        elif 'all' in models_to_run_select: # pragma: no cover
+            models_to_run_select = list(error_models.keys())
 
         config_pars = CommonConfigParams.copy()
         config_pars["colnames"] = full_rename_dict.copy()
@@ -77,7 +79,7 @@ class TruthToObservedPipeline(RailPipeline):
                 rename_dict = {band_: full_rename_dict[band_] for band_ in val["Bands"]}
                 a_env_dict: dict[str, float] = {}
                 for band_ in val["Bands"]:
-                    if band_ in full_a_env_dict:
+                    if band_ in full_a_env_dict:  # pragma: no cover
                         a_env_dict[band_] = full_a_env_dict[band_]
                     else:  # pragma: no cover
                         renamed_band = rename_dict[band_]

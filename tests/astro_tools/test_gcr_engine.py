@@ -16,6 +16,7 @@ def test_GCRCreator():
     config = {
         "base_dir": os.path.join(this_dir, "gcr_test_data"),
         "filename_pattern": "test_object_tract_4850.hdf5",
+        "seed": 1234,  # fix the seed for testing
     }
     gc._catalog_override = [reader, config]
 
@@ -31,5 +32,5 @@ def test_GCRCreator():
 
     # Check filters work
     assert cat.data["mag_r"].max() > 24
-    cat = gc.sample(n_samples=4, quantities=bands, filters=["mag_r < 24"])
+    cat = gc.sample(n_samples=4, quantities=bands, filters=["mag_r < 24"], seed=1234)  # fix the seed for testing
     assert cat.data["mag_r"].max() < 24

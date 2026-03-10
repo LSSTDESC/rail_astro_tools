@@ -136,11 +136,16 @@ class ObsCondition(Noisifier):
         # validate input parameters
         self._validate_obs_config()
 
+        # set renameDict in map_dict
+        if "renameDict" in self.config:
+            self.config['map_dict']['renameDict'] = self.config['renameDict']
+
         # initiate self.maps
         self.maps = {}
 
         # load the maps
         self._get_maps()
+
 
     def _validate_obs_config(self):
         """
@@ -465,7 +470,7 @@ class ObsCondition(Noisifier):
         """
         Initialise the error model: LSSTerrorModel
         """
-        self.default_errorModel = LsstErrorModel()
+        self.default_errorModel = LsstErrorModel(renameDict = self.config['renameDict'])
 
     def _addNoise(self):
         """
@@ -496,7 +501,7 @@ class ObsCondition(Noisifier):
 
                 # first, check if pixel is -99 - these objects have default obs_conditions:
                 if pixel == -99:
-                    # use the default error model for this pixel
+                    # use the default error model for this pixel, using the band names specified
                     errorModel = self.default_errorModel
 
                 else:

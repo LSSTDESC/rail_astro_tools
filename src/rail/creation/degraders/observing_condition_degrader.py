@@ -470,7 +470,11 @@ class ObsCondition(Noisifier):
         """
         Initialise the error model: LSSTerrorModel
         """
-        self.default_errorModel = LsstErrorModel(renameDict = self.config['renameDict'])
+        if 'renameDict' not in self.config['map_dict'].keys():
+            renameDict=None
+        else:
+            renameDict = self.config['map_dict']['renameDict']
+        self.default_errorModel = LsstErrorModel(renameDict=renameDict)
 
     def _addNoise(self):
         """

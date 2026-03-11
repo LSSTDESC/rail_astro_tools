@@ -1,26 +1,40 @@
-"""Add a bias to redshift using model parameters loaded from a CSV file."""
+"""Add a bias to redshift using a Gaussian core + skewed Student-t tail error model."""
 
 
 from typing import Any
-from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from ceci.config import StageParameter as Param
 from scipy.stats import jf_skew_t
 
 from rail.creation.selector import Selector
 
-class COSMOSSelector(Selector):
-    """Add a column of random numbers to a dataframe"""
+default_selector_model_dict = dict(mag_i_bin_edges = np.array([15.5, 22. , 23. , 24. , 29. ]),
+                                   z_bin_edges = np.array([0. , 0.3, 0.7, 1. , 1.5, 2. , 2.5, 3. , 4. ]),
+                                   bias_median_lookup_table = np.array([[ 0.   ,  0.002, -0.002,  0.001,  0.001,  0.001,  0.001,  0.001],
+                                           [ 0.   , -0.   , -0.002, -0.004,  0.01 ,  0.01 ,  0.01 ,  0.01 ],
+                                           [ 0.003, -0.   , -0.001, -0.006, -0.002,  0.024,  0.007,  0.   ],
+                                           [ 0.008, -0.005,  0.007, -0.015, -0.019,  0.017,  0.011,  0.   ]]),
+                                   bias_std_lookup_table = np.array([[0.01 , 0.02 , 0.026, 0.038, 0.038, 0.038, 0.038, 0.038],
+                                           [0.011, 0.019, 0.025, 0.036, 0.062, 0.062, 0.062, 0.062],
+                                           [0.011, 0.022, 0.027, 0.044, 0.063, 0.115, 0.093, 0.074],
+                                           [0.013, 0.023, 0.025, 0.051, 0.069, 0.12 , 0.103, 0.069]]),
+                                   f_tail_by_mag_i = np.array([0.088 , 0.1377, 0.4312, 0.01  ]),
+                                   tail_loc_by_mag_i = np.array([-0.0055,  0.1568,  0.2   , -0.02  ]),
+                                   tail_scale_by_mag_i = np.array([0.2041, 0.3522, 0.237 , 0.08  ]),
+                                   tail_a_by_mag_i = np.array([ 3.7662, 10.1149,  2.    ,  8.    ]),
+                                   tail_b_by_mag_i = np.array([ 4.    , 11.2095,  4.    ,  8.    ]))
 
-    name = "COSMOSSelector"
+class GaussianSkewtScatterSelector(Selector):
+    """Add a mock photometric redshift column to a dataframe with a Gaussian + skew Student-t error model"""
+
+    name = "GaussianSkewtScatterSelector"
     entrypoint_function = "__call__"  # the user-facing science function for this class
-    interactive_function = "COSMOSSelector"
+    interactive_function = "GaussianSkewtScatterSelector"
     config_options = Selector.config_options.copy()
     config_options.update(
         col_name=Param(
-            str, "photoz_COSMOS", msg="Name of the column to make with mock photometric redshifts"
+            str, "photoz_mock", msg="Name of the mock photometric redshift column to make"
         ),
         col_name_mag_i=Param(
             str, "mag_i", msg="Name of the i-band magnitude column"
@@ -28,8 +42,8 @@ class COSMOSSelector(Selector):
         col_name_z=Param(
             str, "z", msg="Name of the (true) redshift column"
         ),
-        model_params_path=Param(
-            str, "cosmos.csv", msg="Path to CSV file with model parameters for Gaussian core and skew-t tail distribution components"
+        selector_model_dict=Param(
+            dict, default_selector_model_dict, msg="Dictionary of model parameters for Gaussian core and skew-t tail distribution components"
         ),
     )
 
@@ -42,83 +56,23 @@ class COSMOSSelector(Selector):
 
     def _initNoiseModel(self) -> None:  # pragma: no cover
         self._rng = np.random.default_rng(self.config.seed)
+        self._model = self.config.selector_model_dict
 
     def _addNoise(self) -> None:  # pragma: no cover
-        self._addNoiseCOSMOS()
+        self._addNoiseGaussianSkewtScatter()
 
     def _select(self) -> None:  # pragma: no cover
         # for this selector, we currently don't actually select any rows
         data = self.get_data("input")
         selection_mask = np.ones(len(data), dtype=bool)
 
-        # for the COSMOS selector, emulate photo-z's
+        # for the GaussianSkewtScatter selector, emulate photo-z's
         self._initNoiseModel()
         self._addNoise()
         return selection_mask
     
-    def COSMOSSelector(self, sample: Any, seed: int | None = None, **kwargs: Any):
+    def GaussianSkewtScatterSelector(self, sample: Any, seed: int | None = None, **kwargs: Any):
         return self.__call__(sample, seed=seed, **kwargs)
-
-    def _resolve_model_path(self) -> Path:
-        path = Path(self.config.model_params_path).expanduser()
-        if path.exists():
-            return path
-        raise FileNotFoundError(f"photo-z bias model parameter file not found: {self.config.model_params_path}")
-
-    def _load_parametric_model(self) -> None:
-        ''' load model parameters from a csv file and convert to a dictionary '''
-        path = self._resolve_model_path()
-        df = pd.read_csv(path)
-
-        core = df[df["component"] == "gaussian_core"].copy()
-        tail = df[df["component"] == "skew_student_t_tail"].copy()
-
-        # Reconstruct bin edges and ordered bin-pairs
-        i_edges = np.unique(np.r_[core["i_bin_lo"].to_numpy(), core["i_bin_hi"].to_numpy()])
-        z_edges = np.unique(np.r_[core["z_bin_lo"].to_numpy(), core["z_bin_hi"].to_numpy()])
-        i_pairs = list(zip(i_edges[:-1], i_edges[1:]))
-        z_pairs = list(zip(z_edges[:-1], z_edges[1:]))
-
-        core["i_pair"] = list(zip(core["i_bin_lo"], core["i_bin_hi"]))
-        core["z_pair"] = list(zip(core["z_bin_lo"], core["z_bin_hi"]))
-
-        # Core component: make 2D lookup tables for parameters (ordered by i_pairs x z_pairs)
-        med_tbl = (core.pivot_table(index="i_pair", columns="z_pair", values="mu", aggfunc="first")
-                        .reindex(index=i_pairs, columns=z_pairs).to_numpy())
-        std_tbl = (core.pivot_table(index="i_pair", columns="z_pair", values="sigma", aggfunc="first")
-                        .reindex(index=i_pairs, columns=z_pairs).to_numpy())
-
-        # Tail component: make parameter arrays per i-bin
-        n_i = len(i_pairs)
-        f_tail  = np.zeros(n_i)
-        t_loc   = np.zeros(n_i)
-        t_scale = np.full(n_i, 0.2)
-        t_a     = np.full(n_i, 3.0)
-        t_b     = np.full(n_i, 3.0)
-
-        tail["i_pair"] = list(zip(tail["i_bin_lo"], tail["i_bin_hi"]))
-        i_pair_index = {p: i for i, p in enumerate(i_pairs)}
-        for _, r in tail.iterrows():
-            j = i_pair_index.get(r["i_pair"])
-            if j is None: 
-                continue
-            f_tail[j]  = float(r["f_tail"])
-            t_loc[j]   = float(r["tail_loc"])
-            t_scale[j] = float(r["tail_scale"])
-            t_a[j]     = float(r["tail_a"])
-            t_b[j]     = float(r["tail_b"])
-
-        self._cosmos_model = {
-            "mag_i_bin_edges": i_edges,
-            "z_bin_edges":     z_edges,
-            "bias_median_lookup_table": med_tbl,
-            "bias_std_lookup_table":    std_tbl,
-            "f_tail_by_mag_i":          f_tail,
-            "tail_loc_by_mag_i":        t_loc,
-            "tail_scale_by_mag_i":      t_scale,
-            "tail_a_by_mag_i":          t_a,
-            "tail_b_by_mag_i":          t_b,
-        }
 
     def _sample_parametric_bias_model(
         self,
@@ -126,13 +80,12 @@ class COSMOSSelector(Selector):
         data_z: np.ndarray,
         target_mask: np.ndarray,
     ) -> np.ndarray:
-        """Sample bias using a csv-configured Gaussian core + skewed Student-t tail."""
+        """Sample bias using a Gaussian core + skewed Student-t tail."""
         z_bias_samples = np.zeros_like(data_z)
         if not np.any(target_mask):
             return z_bias_samples
 
-        self._load_parametric_model()
-        model = self._cosmos_model
+        model = self.config.selector_model_dict
 
         n_target = int(np.sum(target_mask))
         target_i = data_i[target_mask]
@@ -181,7 +134,7 @@ class COSMOSSelector(Selector):
         z_bias_samples[target_mask] = target_bias
         return z_bias_samples
 
-    def _addNoiseCOSMOS(self) -> None:  # pragma: no cover
+    def _addNoiseGaussianSkewtScatter(self) -> None:  # pragma: no cover
         data = self.get_data("input")
         data_i = np.asarray(data[self.config.col_name_mag_i])
         data_z = np.asarray(data[self.config.col_name_z])

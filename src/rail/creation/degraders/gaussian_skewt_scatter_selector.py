@@ -19,11 +19,11 @@ default_selector_model_dict = dict(mag_i_bin_edges = np.array([15.5, 22. , 23. ,
                                            [0.011, 0.019, 0.025, 0.036, 0.062, 0.062, 0.062, 0.062],
                                            [0.011, 0.022, 0.027, 0.044, 0.063, 0.115, 0.093, 0.074],
                                            [0.013, 0.023, 0.025, 0.051, 0.069, 0.12 , 0.103, 0.069]]),
-                                   f_tail_by_mag_i = np.array([0.088 , 0.1377, 0.4312, 0.01  ]),
-                                   tail_loc_by_mag_i = np.array([-0.0055,  0.1568,  0.2   , -0.02  ]),
-                                   tail_scale_by_mag_i = np.array([0.2041, 0.3522, 0.237 , 0.08  ]),
-                                   tail_a_by_mag_i = np.array([ 3.7662, 10.1149,  2.    ,  8.    ]),
-                                   tail_b_by_mag_i = np.array([ 4.    , 11.2095,  4.    ,  8.    ]))
+                                   f_tail_by_mag_i = np.array([0.088 , 0.1377, 0.4312, 0.4312  ]),
+                                   tail_loc_by_mag_i = np.array([-0.0055,  0.1568,  0.2   , 0.2  ]),
+                                   tail_scale_by_mag_i = np.array([0.2041, 0.3522, 0.237 , 0.237  ]),
+                                   tail_a_by_mag_i = np.array([ 3.7662, 10.1149,  2.    ,  2.    ]),
+                                   tail_b_by_mag_i = np.array([ 4.    , 11.2095,  4.    ,  4.    ]))
 
 class GaussianSkewtScatterSelector(Selector):
     """Add a mock photometric redshift column to a dataframe with a Gaussian + skew Student-t error model"""

@@ -67,7 +67,7 @@ class GridSelection(Selector):
         redshift_cut=Param(float, 100.0, msg="cut redshifts above this value"),
         ratio_file=Param(str, def_ratio_file, msg="path to ratio file"),
         settings_file=Param(str, def_set_file, msg="path to pickled parameters file"),
-        random_seed=Param(int, 12345, msg="random seed for reproducibility"),
+        seed=Param(int, 12345, msg="random seed for reproducibility"),
         scaling_factor=Param(
             float,
             1.588,
@@ -93,7 +93,7 @@ class GridSelection(Selector):
         If using a color-based redshift cut, galaxies with redshifts > the percentile cut are removed from the sample
         before making the random selection.
         """
-        rng = np.random.default_rng(seed=self.config.random_seed)
+        rng = np.random.default_rng(seed=self.config.seed)
 
         data = self.get_data("input")
         with open(self.config.settings_file, "rb") as handle:

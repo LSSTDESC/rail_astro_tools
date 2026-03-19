@@ -407,7 +407,7 @@ class LSSTFluxToMagConverter(RailStage):
             default="mag_err_{band}_lsst",
             msg="Template for magnitude error column names",
         ),
-        copy_cols=Param(dict, default={}, msg="Map of other columns to copy"),
+        copy_col_dict=Param(dict, default={}, msg="Map of other columns to copy"),
         mag_offset=Param(float, default=31.4, msg="Magntidue offset value"),
     )
 
@@ -439,7 +439,7 @@ class LSSTFluxToMagConverter(RailStage):
                     data[flux_col_name].values, data[flux_err_col_name].values
                 )
             )
-        for key, val in self.config.copy_cols.items():  # pragma: no cover
+        for key, val in self.config.copy_col_dict.items():  # pragma: no cover
             out_data[key] = data[val].values
         self.add_data("output", out_data)
 

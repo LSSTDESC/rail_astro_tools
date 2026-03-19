@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 from ceci.config import StageParameter as Param
+from rail.core.common_params import SHARED_PARAMS
 from rail.creation.selector import Selector
 from rail.utils.path_utils import RAILDIR
 from scipy.interpolate import interp1d
@@ -17,12 +18,12 @@ class SpecSelection(Selector):
     interactive_function = "spec_selection"
     config_options = Selector.config_options.copy()
     config_options.update(
-        N_tot=Param(int, 10000, msg="Number of selected sources"),
-        nondetect_val=Param(float, 99.0, msg="value to be removed for non detects"),
+        n_tot=Param(int, 10000, msg="Number of selected sources"),
+        nondetect_val=SHARED_PARAMS,
         downsample=Param(
             bool,
             True,
-            msg="If true, downsample the selected sources into a total number of N_tot",
+            msg="If true, downsample the selected sources into a total number of n_tot",
         ),
         success_rate_dir=Param(
             str,
@@ -44,7 +45,7 @@ class SpecSelection(Selector):
                 colors, the keys are, for example, gr standing for g-r; for redshift,
                 the key is 'redshift'""",
         ),
-        random_seed=Param(int, 42, msg="random seed for reproducibility"),
+        seed=Param(int, 42, msg="random seed for reproducibility"),
     )
 
     def __init__(self, args, **kwargs):
@@ -55,7 +56,7 @@ class SpecSelection(Selector):
 
     def _validate_settings(self):
         """Validate all the settings."""
-        if self.config.N_tot < 0:
+        if self.config.n_tot < 0:
             raise ValueError(
                 "Total number of selected sources must be a " "positive integer."
             )
@@ -105,22 +106,22 @@ class SpecSelection(Selector):
             self.mask &= ~np.isnan(data[colname])
             self.mask &= np.isfinite(data[colname])
 
-    def downsampling_N_tot(self):
+    def downsampling_n_tot(self):
         """Randomly sample down the objects to a given number of data objects."""
-        N_tot = self.config.N_tot
-        N_selected = np.count_nonzero(self.mask)
-        if N_tot > N_selected:
+        n_tot = self.config.n_tot
+        n_selected = np.count_nonzero(self.mask)
+        if n_tot > n_selected:
             print(
-                "Warning: N_tot is greater than the size of spec-selected "
+                "Warning: n_tot is greater than the size of spec-selected "
                 + "sample ("
-                + str(N_selected)
+                + str(n_selected)
                 + "). The spec-selected sample "
                 + "is returned."
             )
             return
         else:
             idx_selected = np.where(self.mask)[0]
-            idx_keep = self.rng.choice(idx_selected, replace=False, size=N_tot)
+            idx_keep = self.rng.choice(idx_selected, replace=False, size=n_tot)
             # create a mask with only those entries enabled that have been
             # selected
             mask = np.zeros_like(self.mask)
@@ -130,7 +131,7 @@ class SpecSelection(Selector):
 
     def _select(self):
         """Run the selection."""
-        self.rng = np.random.default_rng(seed=self.config.random_seed)
+        self.rng = np.random.default_rng(seed=self.config.seed)
         # get the bands and bandNames present in the data
         data = self.get_data("input", allow_missing=True)
         self.validate_colnames(data)
@@ -138,7 +139,7 @@ class SpecSelection(Selector):
         self.invalid_cut(data)
         self.selection(data)
         if self.config.downsample is True:
-            self.downsampling_N_tot()
+            self.downsampling_n_tot()
 
         return self.mask
 

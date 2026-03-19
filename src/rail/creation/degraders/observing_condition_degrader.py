@@ -86,7 +86,7 @@ class ObsCondition(Noisifier):
             True,
             msg="flag indicating whether nVisYr is the total or average per year if supplied.",
         ),
-        random_seed=Param(int, 42, msg="random seed for reproducibility"),
+        seed=Param(int, 42, msg="random seed for reproducibility"),
         map_dict=Param(
             dict,
             {
@@ -480,7 +480,7 @@ class ObsCondition(Noisifier):
         """
         Run the noisifier.
         """
-        self.rng = np.random.default_rng(seed=self.config["random_seed"])
+        self.rng = np.random.default_rng(seed=self.config["seed"])
 
         catalog = self.get_data("input", allow_missing=True)
 
@@ -550,7 +550,7 @@ class ObsCondition(Noisifier):
 
         printMsg += f"tot_nVis_flag = {self.config['tot_nVis_flag']}, \n"
 
-        printMsg += f"random_seed = {self.config['random_seed']}, \n"
+        printMsg += f"random_seed = {self.config['seed']}, \n"
 
         printMsg += "map_dict contains the following items: \n"
 

@@ -50,7 +50,7 @@ def test_dereddener():
     test_data = tables_io.read(testFile)
 
     fluxToMag = LSSTFluxToMagConverter.make_stage(
-        name="flux2mag", copy_cols=dict(ra="ra", dec="decl")
+        name="flux2mag", copy_col_dict=dict(ra="ra", dec="decl")
     )
 
     is_temp_dir = False

@@ -311,7 +311,7 @@ def test_SpecSelection(data):
 
 
 
-def test_SpecSelection_low_N_tot(data_forspec):
+def test_SpecSelection_low_n_tot(data_forspec):
     bands = ["u", "g", "r", "i", "z", "y"]
     band_dict = {band: f"mag_{band}_lsst" for band in bands}
     rename_dict = {f"{band}_err": f"mag_err_{band}_lsst" for band in bands}
@@ -323,7 +323,7 @@ def test_SpecSelection_low_N_tot(data_forspec):
     )
     data_forspec = col_remapper_test(data_forspec)
 
-    degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(N_tot=1)
+    degrader_zCOSMOS = SpecSelection_zCOSMOS.make_stage(n_tot=1)
     degrader_zCOSMOS(data_forspec)
 
     os.remove(
@@ -333,11 +333,11 @@ def test_SpecSelection_low_N_tot(data_forspec):
     )
 
 
-@pytest.mark.parametrize("N_tot, errortype", [(-1, ValueError)])
-def test_SpecSelection_bad_params(N_tot, errortype):
+@pytest.mark.parametrize("n_tot, errortype", [(-1, ValueError)])
+def test_SpecSelection_bad_params(n_tot, errortype):
     """Test bad parameters that should raise TypeError"""
     with pytest.raises(errortype):
-        SpecSelection.make_stage(N_tot=N_tot)
+        SpecSelection.make_stage(n_tot=n_tot)
 
 
 @pytest.mark.parametrize("errortype", [ValueError])
@@ -369,10 +369,10 @@ def test_ObsCondition_returns_correct_shape(data):
     os.remove(degrader.get_output(degrader.get_aliased_tag("output"), final_name=True))
 
 
-def test_ObsCondition_random_seed(data):
+def test_ObsCondition_seed(data):
     """Test control with random seeds."""
-    degrader1 = ObsCondition.make_stage(random_seed=0)
-    degrader2 = ObsCondition.make_stage(random_seed=0)
+    degrader1 = ObsCondition.make_stage(seed=0)
+    degrader2 = ObsCondition.make_stage(seed=0)
 
     # make sure setting the same seeds yields the same output
     degraded_data1 = degrader1(data).data
@@ -380,7 +380,7 @@ def test_ObsCondition_random_seed(data):
     assert degraded_data1.equals(degraded_data2)
 
     # make sure setting different seeds yields different output
-    degrader3 = ObsCondition.make_stage(random_seed=1)
+    degrader3 = ObsCondition.make_stage(seed=1)
     degraded_data3 = degrader3(data).data.to_numpy()
     assert not degraded_data1.equals(degraded_data3)
 
@@ -468,12 +468,12 @@ def test_ObsCondition_extended(data):
         "tvis": 30.0,
     }
     tot_nVis_flag = True
-    random_seed = None
+    seed = None
 
     degrader_ext = ObsCondition.make_stage(
         weight=weight,
         tot_nVis_flag=tot_nVis_flag,
-        random_seed=random_seed,
+        seed=seed,
         map_dict=map_dict,
     )
     degrader_ext(data)
@@ -486,7 +486,7 @@ def test_ObsCondition_extended(data):
 
 def test_ObsCondition_empty_map_dict(data):
     """Test control with random seeds."""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={})
+    degrader1 = ObsCondition.make_stage(seed=0, map_dict={})
     degrader2 = PhoterrErrorModel()
 
     # make sure setting the same seeds yields the same output
@@ -502,7 +502,7 @@ def test_ObsCondition_empty_map_dict(data):
 def test_ObsCondition_renameDict(data_with_radec):
     """Test with renameDict included"""
     degrader1 = ObsCondition.make_stage(
-        random_seed=0,
+        seed=0,
         map_dict={
             "EBV": 0.0,
             "renameDict": {"u": "u", "ra": "ra", "dec": "dec"},
@@ -519,7 +519,7 @@ def test_ObsCondition_renameDict(data_with_radec):
 
 def test_ObsCondition_data_with_radec(data_with_radec):
     """Test with ra dec in data"""
-    degrader1 = ObsCondition.make_stage(random_seed=0, map_dict={"EBV": 0.0})
+    degrader1 = ObsCondition.make_stage(seed=0, map_dict={"EBV": 0.0})
     degraded_data1 = degrader1(data_with_radec).data
 
     os.remove(

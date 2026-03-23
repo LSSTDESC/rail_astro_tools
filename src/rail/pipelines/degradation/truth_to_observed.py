@@ -132,6 +132,22 @@ class TruthToObservedPipeline(RailPipeline):
                 config_pars,
             )
 
+    # def _add_selectors(
+    #     self,
+    #     previous_stage,
+    #     key: str,
+    #     selectors: dict,
+    #     config_pars: dict,
+    # ) -> None:
+
+    #     for keyS, valS in selectors.items():
+    #         the_class = ceci.PipelineStage.get_stage(valS["Select"], valS["Module"])
+    #         the_selector = the_class.make_and_connect(
+    #             name=f"select_{key}_{keyS}",
+    #             connections=dict(input=previous_stage.io.output),
+    #             **config_pars,
+    #         )
+    #         self.add_stage(the_selector)
     def _add_selectors(
         self,
         previous_stage,
@@ -142,9 +158,11 @@ class TruthToObservedPipeline(RailPipeline):
 
         for keyS, valS in selectors.items():
             the_class = ceci.PipelineStage.get_stage(valS["Select"], valS["Module"])
+            overrides = valS.get("Overrides", {})
             the_selector = the_class.make_and_connect(
                 name=f"select_{key}_{keyS}",
                 connections=dict(input=previous_stage.io.output),
                 **config_pars,
+                **overrides,
             )
             self.add_stage(the_selector)

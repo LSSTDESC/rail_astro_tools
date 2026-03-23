@@ -63,15 +63,13 @@ class SpecSelection_DESI_Phy(Selector):
         threshold_table=Param(str, "None", msg="Filename of the threshold file")
     )
 
-    def __call__(self, sample, threshold_table, **kwargs):
+    def __call__(self, sample, **kwargs):
         """Apply the DESI physical selection to a catalog.
 
         Parameters
         ----------
         sample : table-like or PqHandle
             Input simulation catalog.
-        threshold_table : table-like or TableHandle
-            Table with columns ``z`` and ``thresh``.
 
         Returns
         -------
@@ -81,7 +79,6 @@ class SpecSelection_DESI_Phy(Selector):
             ``flag`` column (when ``drop_rows=False``).
         """
         self.set_data("input", sample)
-        self.set_data("threshold_table", threshold_table)
         self.run()
         self.finalize()
         return self.get_handle("output")

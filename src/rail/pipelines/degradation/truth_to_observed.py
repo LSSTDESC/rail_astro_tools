@@ -142,9 +142,11 @@ class TruthToObservedPipeline(RailPipeline):
 
         for keyS, valS in selectors.items():
             the_class = ceci.PipelineStage.get_stage(valS["Select"], valS["Module"])
+            overrides = valS.get("Overrides", {})
             the_selector = the_class.make_and_connect(
                 name=f"select_{key}_{keyS}",
                 connections=dict(input=previous_stage.io.output),
                 **config_pars,
+                **overrides,
             )
             self.add_stage(the_selector)

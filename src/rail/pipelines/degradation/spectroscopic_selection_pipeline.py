@@ -33,6 +33,26 @@ SELECTORS = dict(
         Select="SpecSelection_HSC",
         Module="rail.creation.degraders.spectroscopic_selections",
     ),
+    DEEP2_LSST=dict(
+        Select="SpecSelection_DEEP2_LSST",
+        Module="rail.creation.degraders.spectroscopic_selections",
+    ),
+    DESI_BGS=dict(
+        Select="SpecSelection_DESI_BGS",
+        Module="rail.creation.degraders.spectroscopic_selections",
+    ),
+    DESI_LRG=dict(
+        Select="SpecSelection_DESI_LRG",
+        Module="rail.creation.degraders.spectroscopic_selections",
+    ),
+    DESI_ELG_LOP=dict(
+        Select="SpecSelection_DESI_ELG_LOP",
+        Module="rail.creation.degraders.spectroscopic_selections",
+    ),
+    DESI_LRG_phys=dict(
+        Select="SpecSelection_DESI_Phy",
+        Module="rail.creation.degraders.desi_selector_phy",
+    )
 )
 
 

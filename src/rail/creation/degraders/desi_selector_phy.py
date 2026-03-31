@@ -5,6 +5,7 @@ from ceci.config import StageParameter as Param
 from rail.core.data import PqHandle, TableHandle
 from rail.creation.selector import Selector
 from scipy.interpolate import interp1d
+import pandas as pd
 
 
 class SpecSelection_DESI_Phy(Selector):
@@ -38,7 +39,7 @@ class SpecSelection_DESI_Phy(Selector):
     entrypoint_function = "__call__"
     interactive_function = "spec_selection_desi_phy"
 
-    inputs = [("input", PqHandle), ("threshold_table", TableHandle)]
+    inputs = [("input", PqHandle)]
     outputs = [("output", PqHandle)]
 
     config_options = Selector.config_options.copy()
@@ -50,7 +51,7 @@ class SpecSelection_DESI_Phy(Selector):
         ),
         threshold_col=Param(
             str,
-            required=True,
+            "None",
             msg="Column in the input catalog used for threshold-based selection "
                 "(e.g. 'log_peak_sub_halo_mass' for bgs/lrg, 'log_sfr' for elg)",
         ),
@@ -59,17 +60,16 @@ class SpecSelection_DESI_Phy(Selector):
             "redshift",
             msg="Column name for redshift in the input catalog",
         ),
+        threshold_table=Param(str, "None", msg="Filename of the threshold file")
     )
 
-    def __call__(self, sample, threshold_table, **kwargs):
+    def __call__(self, sample, **kwargs):
         """Apply the DESI physical selection to a catalog.
 
         Parameters
         ----------
         sample : table-like or PqHandle
             Input simulation catalog.
-        threshold_table : table-like or TableHandle
-            Table with columns ``z`` and ``thresh``.
 
         Returns
         -------
@@ -79,7 +79,6 @@ class SpecSelection_DESI_Phy(Selector):
             ``flag`` column (when ``drop_rows=False``).
         """
         self.set_data("input", sample)
-        self.set_data("threshold_table", threshold_table)
         self.run()
         self.finalize()
         return self.get_handle("output")
@@ -93,10 +92,19 @@ class SpecSelection_DESI_Phy(Selector):
             Array of 0/1 flags, one per row of the input catalog.
         """
         data = self.get_data("input", allow_missing=True)
-        thresh_data = self.get_data("threshold_table", allow_missing=True)
+        # thresh_data = self.get_data("threshold_table", allow_missing=True)
 
         threshold_col = self.config.threshold_col
         redshift_col = self.config.redshift_col
+
+        threshold_table = self.config.threshold_table
+        try:
+            thresh_data = pd.read_parquet(threshold_table)
+        except Exception as e: # pragma: no cover
+            raise ValueError(
+                f"Could not read threshold file '{threshold_table}' as a Parquet file. "
+                f"Ensure the file exists and is a valid Parquet file. Original error: {e}"
+            ) from e
 
         # --- validate input columns ---
         for col in (threshold_col, redshift_col):

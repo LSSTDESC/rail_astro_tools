@@ -100,7 +100,7 @@ class SpecSelection_DESI_Phy(Selector):
         threshold_table = self.config.threshold_table
         try:
             thresh_data = pd.read_parquet(threshold_table)
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             raise ValueError(
                 f"Could not read threshold file '{threshold_table}' as a Parquet file. "
                 f"Ensure the file exists and is a valid Parquet file. Original error: {e}"

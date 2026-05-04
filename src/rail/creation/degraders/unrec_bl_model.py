@@ -179,7 +179,7 @@ class UnrecBlModel(Degrader):
             ## sum up the fluxes into the blended source
             for b in self.config.bands:
                 mergeData[i, cols.index(b)] = (
-                    -2.5 * np.log10(np.sum(these_fluxes[b])) + ZERO_POINT)
+                    -2.5 * np.log10(np.sum(these_fluxes[b])) + ZERO_POINT
                 )
 
             brighest_idx = np.argmax(ref_fluxes)

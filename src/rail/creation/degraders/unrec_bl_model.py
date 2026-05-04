@@ -3,6 +3,8 @@
 import FoFCatalogMatching
 import numpy as np
 import pandas as pd
+import healpy
+
 from ceci.config import StageParameter as Param
 from rail.core.common_params import SHARED_PARAMS
 from rail.core.data import PqHandle
@@ -35,6 +37,7 @@ class UnrecBlModel(Degrader):
         ra_label=Param(str, "ra", msg="ra column name"),
         dec_label=Param(str, "dec", msg="dec column name"),
         linking_lengths=Param(float, 1.0, msg="linking_lengths for FoF matching"),
+        hpx_nside=Param(int, 64, "Healpix nside to use for parallelization"),
         bands=SHARED_PARAMS,
         ref_band=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
@@ -106,21 +109,49 @@ class UnrecBlModel(Degrader):
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
         linking_lengths = self.config.linking_lengths
 
-        results = FoFCatalogMatching.match(
-            {"truth": data},
-            linking_lengths=linking_lengths,
-            ra_label=ra_label,
-            dec_label=dec_label,
+        hpx_idx = healpy.healpy.pixelfunc.ang2pix(
+            self.config.hpx_nside,
+            data[dec_label],
+            data[ra_label],
+            lonlat=True,
         )
-        results.remove_column("catalog_key")
 
-        results = results.to_pandas(index="row_index")
-        results.sort_values(by="row_index", inplace=True)
+        idx_list = np.sort(np.unique(hpx_idx))
 
-        ## adding the group id as the last column to data
-        matchData = pd.merge(data, results, left_index=True, right_index=True)
+        match_list = []
+        results_list = []
+        
+        for which_pix in idx_list:
+            mask = hpx_idx == which_pix
+            all_neighbours = healpy.pixelfunc.get_all_neighbours(which_pix)
+            for neighbour in all_neighbours:
+                mask = np.bitwise_or(mask, hpx_idx == neighbour)
 
-        return matchData, results
+            sub_data = data[mask]
+                            
+            results = FoFCatalogMatching.match(
+                {"truth": sub_data},
+                linking_lengths=linking_lengths,
+                ra_label=ra_label,
+                dec_label=dec_label,
+            )
+            results.remove_column("catalog_key")
+
+            results = results.to_pandas(index="row_index")
+            results.sort_values(by="row_index", inplace=True)
+
+            use_data = sub_data[hpx_idx == which_pix]
+            ## adding the group id as the last column to data
+            match_data = pd.merge(use_data, results, left_index=True, right_index=True)
+            match_list.append(match_data)
+            results_list.append(results)
+
+        match_data = pd.concatanate(match_list)
+        results = pd.concatanate(results_list)
+
+        breakpoint()
+            
+        return match_data, results
 
     def __merge_bl__(self, data):
         """Merge sources within a group into unrecognized blends."""
@@ -170,7 +201,7 @@ class UnrecBlModel(Degrader):
             # Pull put some useful stuff
             n_obj = len(this_group)
             ref_fluxes = these_fluxes[self.config.ref_band]
-            these_redshifts = this_group[self.config.redshift_col]
+            these_redshifts = this_group[self.config.redshift_col] 
 
             ## take the average position for the blended source
             mergeData[i, idx_ra] = this_group[ra_label].mean()

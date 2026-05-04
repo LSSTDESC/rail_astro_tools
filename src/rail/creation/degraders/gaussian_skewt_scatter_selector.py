@@ -93,8 +93,8 @@ class GaussianSkewtScatterSelector(Selector):
 
         # determine mag_i and z bin for each target galaxy
         # if the target falls outside the bin edges, assign it to the nearest bin
-        target_mag_i_bin = np.digitize(target_i, model["mag_i_bin_edges"]) - 1
-        target_z_bin = np.digitize(target_z, model["z_bin_edges"]) - 1
+        target_mag_i_bin = np.digitize(target_i, np.array(model["mag_i_bin_edges"]).astype(int)) - 1
+        target_z_bin = np.digitize(target_z, np.array(model["z_bin_edges"].astype(int)) - 1
         target_mag_i_bin = np.clip(target_mag_i_bin, 0, np.array(model["bias_median_lookup_table"]).shape[0] - 1)
         target_z_bin = np.clip(target_z_bin, 0, np.array(model["bias_median_lookup_table"]).shape[1] - 1)
 

@@ -85,7 +85,8 @@ class GaussianSkewtScatterSelector(Selector):
         if not np.any(target_mask):
             return z_bias_samples
 
-        model = self.config.selector_model_dict
+        
+        model = {k:np.array(v) for k, v in self.config.selector_model_dict.items()}
 
         n_target = int(np.sum(target_mask))
         target_i = data_i[target_mask]
@@ -93,11 +94,10 @@ class GaussianSkewtScatterSelector(Selector):
 
         # determine mag_i and z bin for each target galaxy
         # if the target falls outside the bin edges, assign it to the nearest bin
-        target_mag_i_bin = np.digitize(target_i, np.array(model["mag_i_bin_edges"]).astype(int)) - 1
-        target_z_bin = np.digitize(target_z, np.array(model["z_bin_edges"].astype(int)) - 1
-        target_mag_i_bin = np.clip(target_mag_i_bin, 0, np.array(model["bias_median_lookup_table"]).shape[0] - 1)
-        target_z_bin = np.clip(target_z_bin, 0, np.array(model["bias_median_lookup_table"]).shape[1] - 1)
-
+        target_mag_i_bin = np.digitize(target_i, model["mag_i_bin_edges"]) - 1
+        target_z_bin = np.digitize(target_z, model["z_bin_edges"]) - 1
+        target_mag_i_bin = np.clip(target_mag_i_bin, 0, model["bias_median_lookup_table"].shape[0] - 1)
+        target_z_bin = np.clip(target_z_bin, 0, model["bias_median_lookup_table"].shape[1] - 1)
         # set component parameters for each target
         target_mean_bias_component1 = np.array(model["bias_median_lookup_table"])[target_mag_i_bin, target_z_bin]
         target_std_bias_component1 = np.array(model["bias_std_lookup_table"])[target_mag_i_bin, target_z_bin]

@@ -8,7 +8,11 @@ from rail.core.common_params import SHARED_PARAMS
 from rail.core.data import PqHandle
 from rail.creation.degrader import Degrader
 
-lsst_zp_dict = {"u": 12.65, "g": 14.69, "r": 14.56, "i": 14.38, "z": 13.99, "y": 13.02}
+#lsst_zp_dict = {"u": 12.65, "g": 14.69, "r": 14.56, "i": 14.38, "z": 13.99, "y": 13.02}
+
+# use arbitrary zero point
+# we work independently in each band, so the zero point are not important
+ZERO_POINT = 14.0
 
 
 class UnrecBlModel(Degrader):
@@ -32,7 +36,6 @@ class UnrecBlModel(Degrader):
         dec_label=Param(str, "dec", msg="dec column name"),
         linking_lengths=Param(float, 1.0, msg="linking_lengths for FoF matching"),
         bands=SHARED_PARAMS,
-        zp_dict=Param(dict, lsst_zp_dict, msg="magnitude zeropoints dictionary"),
         ref_band=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,
         match_size=Param(bool, False, msg="consider object size for finding blends"),
@@ -138,7 +141,7 @@ class UnrecBlModel(Degrader):
 
         # compute the fluxes once for all the galaxies
         fluxes = {
-            b: 10 ** (-(data[b] - self.config.zp_dict[b]) / 2.5)
+            b: 10 ** (-(data[b] - ZERO_POINT) / 2.5)
             for b in self.config.bands
         }
 
@@ -176,7 +179,7 @@ class UnrecBlModel(Degrader):
             ## sum up the fluxes into the blended source
             for b in self.config.bands:
                 mergeData[i, cols.index(b)] = (
-                    -2.5 * np.log10(np.sum(these_fluxes[b])) + self.config.zp_dict[b]
+                    -2.5 * np.log10(np.sum(these_fluxes[b])) + ZERO_POINT]
                 )
 
             brighest_idx = np.argmax(ref_fluxes)

@@ -1,7 +1,5 @@
 """Model for Creating Unrecognized Blends"""
 
-import time
-
 import FoFCatalogMatching
 import numpy as np
 import pandas as pd
@@ -248,8 +246,6 @@ class UnrecBlModel(Degrader):
         match_list = []
         results_list = []
 
-        print(f"Working on {len(idx_list)} healpix pixels")
-        
         for which_pix in idx_list:            
             mask = hpx_idx == which_pix
             all_neighbours = healpy.pixelfunc.get_all_neighbours(self.config.hpx_nside, which_pix)
@@ -259,20 +255,12 @@ class UnrecBlModel(Degrader):
             sub_data = data[mask]
             central_mask = hpx_idx[mask] == which_pix
             
-            before_match_time = time.process_time()            
             # Match for close-by objects
             matchData, compInd = self.__match_bl__(sub_data)
-            after_match_time = time.process_time()            
-            print(f"Match {which_pix}: {after_match_time-before_match_time}")
-
             matchData['hpx_idx'] = hpx_idx[mask]
             
             # Merge matched objects into unrec-bl
-            before_merge_time = time.process_time()
             blData = self.__merge_bl__(matchData, which_pix)
-            after_merge_time = time.process_time()
-            print(f"Merge {which_pix}: {after_merge_time-before_merge_time}")
-
             blData = blData[blData['hpx_idx'] == which_pix]
 
             compInd = compInd[central_mask.to_numpy()]

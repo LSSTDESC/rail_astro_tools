@@ -109,48 +109,18 @@ class UnrecBlModel(Degrader):
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
         linking_lengths = self.config.linking_lengths
 
-        hpx_idx = healpy.healpy.pixelfunc.ang2pix(
-            self.config.hpx_nside,
-            data[dec_label],
-            data[ra_label],
-            lonlat=True,
+        results = FoFCatalogMatching.match(
+            {"truth": data},
+            linking_lengths=linking_lengths,
+            ra_label=ra_label,
+            dec_label=dec_label,
         )
+        results.remove_column("catalog_key")
+        results = results.to_pandas(index="row_index")
+        results.sort_values(by="row_index", inplace=True)
 
-        idx_list = np.sort(np.unique(hpx_idx))
-
-        match_list = []
-        results_list = []
-        
-        for which_pix in idx_list:
-            mask = hpx_idx == which_pix
-            all_neighbours = healpy.pixelfunc.get_all_neighbours(which_pix)
-            for neighbour in all_neighbours:
-                mask = np.bitwise_or(mask, hpx_idx == neighbour)
-
-            sub_data = data[mask]
-                            
-            results = FoFCatalogMatching.match(
-                {"truth": sub_data},
-                linking_lengths=linking_lengths,
-                ra_label=ra_label,
-                dec_label=dec_label,
-            )
-            results.remove_column("catalog_key")
-
-            results = results.to_pandas(index="row_index")
-            results.sort_values(by="row_index", inplace=True)
-
-            use_data = sub_data[hpx_idx == which_pix]
-            ## adding the group id as the last column to data
-            match_data = pd.merge(use_data, results, left_index=True, right_index=True)
-            match_list.append(match_data)
-            results_list.append(results)
-
-        match_data = pd.concatanate(match_list)
-        results = pd.concatanate(results_list)
-
-        breakpoint()
-            
+        ## adding the group id as the last column to data
+        match_data = pd.merge(data, results, left_index=True, right_index=True)            
         return match_data, results
 
     def __merge_bl__(self, data):
@@ -243,12 +213,47 @@ class UnrecBlModel(Degrader):
         # Load the input catalog
         data = self.get_data("input")
 
-        # Match for close-by objects
-        matchData, compInd = self.__match_bl__(data)
+        ra_label, dec_label = self.config.ra_label, self.config.dec_label
 
-        # Merge matched objects into unrec-bl
-        blData = self.__merge_bl__(matchData)
+        hpx_idx = healpy.pixelfunc.ang2pix(
+            self.config.hpx_nside,
+            data[dec_label],
+            data[ra_label],
+            lonlat=True,
+        )
 
+        idx_list = np.sort(np.unique(hpx_idx))
+
+        match_list = []
+        results_list = []
+        
+        for which_pix in idx_list:
+            mask = hpx_idx == which_pix
+            all_neighbours = healpy.pixelfunc.get_all_neighbours(self.config.hpx_nside, which_pix)
+            for neighbour in all_neighbours:
+                mask = np.bitwise_or(mask, hpx_idx == neighbour)
+
+            sub_data = data[mask]
+
+            # Match for close-by objects
+            matchData, compInd = self.__match_bl__(sub_data)
+
+            # Merge matched objects into unrec-bl
+            blData = self.__merge_bl__(matchData)
+
+            # remove stuff outside central pixel
+            blData = blData[hpx_idx == which_pix]
+            compInd = compInd[hpx_idx == which_pix]
+
+            blData['hpx_idx'] = which_pix
+            compInd['hpx_idx'] = which_pix
+            
+            results_list.append(blData)
+            match_list.append(compInd)
+            
+        blData = pd.concat(results_list)
+        compInd = pd.concat(match_list)
+        
         # Return the new catalog and component index in original catalog
         self.add_data("output", blData)
         self.add_data("compInd", compInd)

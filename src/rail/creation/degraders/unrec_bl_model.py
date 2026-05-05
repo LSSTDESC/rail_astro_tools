@@ -171,11 +171,11 @@ class UnrecBlModel(Degrader):
 
             # Get the data and fluxes for this grouping
             this_group = data[mask]
-            these_fluxes = {b: fluxes[b][mask] for b in self.config.bands}
-
             if not (this_group['hpx_idx'] == which_pix).any():
                 continue
-            
+
+            these_fluxes = {b: this_group[b] for b in self.config.bands}
+
             # Pull put some useful stuff
             n_obj = len(this_group)
             ref_fluxes = these_fluxes[self.config.ref_band]
@@ -261,7 +261,8 @@ class UnrecBlModel(Degrader):
             after_merge_time = time.process_time()
             print(f"Merge {which_pix}: {after_merge_time-before_merge_time}")
 
-            blData = blData[central_mask]
+            blData = blData[blData['hpx_idx'] == which_pix]
+
             compInd = compInd[central_mask]
             compInd['hpx_idx'] = which_pix
             

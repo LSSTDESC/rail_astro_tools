@@ -39,7 +39,7 @@ class UnrecBlModel(Degrader):
         ra_label=Param(str, "ra", msg="ra column name"),
         dec_label=Param(str, "dec", msg="dec column name"),
         linking_lengths=Param(float, 1.0, msg="linking_lengths for FoF matching"),
-        hpx_nside=Param(int, 64, "Healpix nside to use for parallelization"),
+        hpx_nside=Param(int, 128, "Healpix nside to use for parallelization"),
         bands=SHARED_PARAMS,
         ref_band=SHARED_PARAMS,
         redshift_col=SHARED_PARAMS,

@@ -1,5 +1,7 @@
 """Model for Creating Unrecognized Blends"""
 
+import time
+
 import FoFCatalogMatching
 import numpy as np
 import pandas as pd
@@ -227,7 +229,7 @@ class UnrecBlModel(Degrader):
         match_list = []
         results_list = []
         
-        for which_pix in idx_list:
+        for which_pix in idx_list:            
             mask = hpx_idx == which_pix
             all_neighbours = healpy.pixelfunc.get_all_neighbours(self.config.hpx_nside, which_pix)
             for neighbour in all_neighbours:
@@ -235,15 +237,28 @@ class UnrecBlModel(Degrader):
 
             sub_data = data[mask]
 
+            before_match_time = time.process_time()            
             # Match for close-by objects
             matchData, compInd = self.__match_bl__(sub_data)
+            after_match_time = time.process_time()            
+            print(f"Match {which_pix}: {after_match_time-before_match_time}")
 
             # Merge matched objects into unrec-bl
+            before_merge_time = time.process_time()
             blData = self.__merge_bl__(matchData)
+            after_merge_time = time.process_time()
+            print(f"Merge {which_pix}: {after_merge_time-before_merge_time}")
 
+            hpx_test = healpy.pixelfunc.ang2pix(
+                self.config.hpx_nside,
+                blData[dec_label],
+                blData[ra_label],
+                lonlat=True,
+            )
+            
             # remove stuff outside central pixel
-            blData = blData[hpx_idx == which_pix]
-            compInd = compInd[hpx_idx == which_pix]
+            blData = blData[hpx_test == which_pix]
+            compInd = compInd[hpx_test == which_pix]
 
             blData['hpx_idx'] = which_pix
             compInd['hpx_idx'] = which_pix
@@ -251,9 +266,9 @@ class UnrecBlModel(Degrader):
             results_list.append(blData)
             match_list.append(compInd)
             
-        blData = pd.concat(results_list)
-        compInd = pd.concat(match_list)
+        blData_all = pd.concat(results_list)
+        compInd_all = pd.concat(match_list)
         
         # Return the new catalog and component index in original catalog
-        self.add_data("output", blData)
-        self.add_data("compInd", compInd)
+        self.add_data("output", blData_all)
+        self.add_data("compInd", compInd_all)

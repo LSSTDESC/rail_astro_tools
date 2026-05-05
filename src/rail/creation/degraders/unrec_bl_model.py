@@ -251,6 +251,8 @@ class UnrecBlModel(Degrader):
             after_match_time = time.process_time()            
             print(f"Match {which_pix}: {after_match_time-before_match_time}")
 
+            matchData['hpx_idx'] = hpx_idx[mask]
+            
             # Merge matched objects into unrec-bl
             before_merge_time = time.process_time()
             blData = self.__merge_bl__(matchData, which_pix)

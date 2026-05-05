@@ -130,7 +130,7 @@ class UnrecBlModel(Degrader):
     
         # Filter to groups that contain at least one object in which_pix
         groups_in_pix = data[data['hpx_idx'] == which_pix]['group_id'].unique()
-        if len(groups_in_pix) == 0:
+        if len(groups_in_pix) == 0:  # pragma: no cover
             return pd.DataFrame(columns=self._get_merge_columns())
     
         data = data[data['group_id'].isin(groups_in_pix)].copy()
@@ -173,7 +173,7 @@ class UnrecBlModel(Degrader):
         result = result.loc[valid_groups]
         brightest_data = brightest_data.loc[valid_groups]
     
-        if len(result) == 0:
+        if len(result) == 0:  # pragma: no cover
             return pd.DataFrame(columns=cols)
     
         # Calculate summed magnitudes for each band

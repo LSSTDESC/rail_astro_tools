@@ -125,7 +125,7 @@ class UnrecBlModel(Degrader):
         match_data = pd.merge(data, results, left_index=True, right_index=True)            
         return match_data, results
 
-    def __merge_bl__(self, data):
+    def __merge_bl__(self, data, which_pix):
         """Merge sources within a group into unrecognized blends."""
 
         group_id = data["group_id"]
@@ -133,7 +133,7 @@ class UnrecBlModel(Degrader):
 
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
         cols = (
-            [ra_label, dec_label]
+            [ra_label, dec_label, 'hpx_idx']
             + list(self.config.bands)
             + [self.config.redshift_col]
             + self.blend_info_cols
@@ -151,6 +151,7 @@ class UnrecBlModel(Degrader):
         # pull the column indices
         idx_ra = cols.index(ra_label)
         idx_dec = cols.index(dec_label)
+        idx_hpx_idx = cols.index('hpx_idx')
         idx_redshift = cols.index(self.config.redshift_col)
         idx_n_obj = cols.index("n_obj")
         idx_brightest_flux = cols.index("brightest_flux")
@@ -170,6 +171,9 @@ class UnrecBlModel(Degrader):
             this_group = data[mask]
             these_fluxes = {b: fluxes[b][mask] for b in self.config.bands}
 
+            if not (this_group['hpx_idx'] == which_pix).any():
+                continue
+            
             # Pull put some useful stuff
             n_obj = len(this_group)
             ref_fluxes = these_fluxes[self.config.ref_band]
@@ -188,6 +192,7 @@ class UnrecBlModel(Degrader):
             brighest_idx = np.argmax(ref_fluxes)
             redshifts = these_redshifts.iloc[brighest_idx]
 
+            mergeData[i, idx_hpx_idx] = which_pix
             mergeData[i, idx_redshift] = redshifts
             mergeData[i, idx_n_obj] = n_obj
             mergeData[i, idx_brightest_flux] = ref_fluxes.max()
@@ -224,10 +229,13 @@ class UnrecBlModel(Degrader):
             lonlat=True,
         )
 
+        data['hpx_idx'] = hpx_idx
         idx_list = np.sort(np.unique(hpx_idx))
 
         match_list = []
         results_list = []
+
+        print(f"Working on {len(idx_list)} healpix pixels")
         
         for which_pix in idx_list:            
             mask = hpx_idx == which_pix
@@ -237,6 +245,8 @@ class UnrecBlModel(Degrader):
 
             sub_data = data[mask]
 
+            central_mask = sub_data['hpx_idx'] == which_pix
+            
             before_match_time = time.process_time()            
             # Match for close-by objects
             matchData, compInd = self.__match_bl__(sub_data)
@@ -245,22 +255,12 @@ class UnrecBlModel(Degrader):
 
             # Merge matched objects into unrec-bl
             before_merge_time = time.process_time()
-            blData = self.__merge_bl__(matchData)
+            blData = self.__merge_bl__(matchData, which_pix)
             after_merge_time = time.process_time()
             print(f"Merge {which_pix}: {after_merge_time-before_merge_time}")
 
-            hpx_test = healpy.pixelfunc.ang2pix(
-                self.config.hpx_nside,
-                blData[dec_label],
-                blData[ra_label],
-                lonlat=True,
-            )
-            
-            # remove stuff outside central pixel
-            blData = blData[hpx_test == which_pix]
-            compInd = compInd[hpx_test == which_pix]
-
-            blData['hpx_idx'] = which_pix
+            blData = blData[central_mask]
+            compInd = compInd[central_mask]
             compInd['hpx_idx'] = which_pix
             
             results_list.append(blData)

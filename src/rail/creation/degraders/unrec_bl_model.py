@@ -190,8 +190,12 @@ class UnrecBlModel(Degrader):
                 mergeData[i, cols.index(b)] = (
                     -2.5 * np.log10(np.sum(these_fluxes[b])) + ZERO_POINT
                 )
-
+                
             brighest_idx = np.argmax(ref_fluxes)
+            hpx_idx = this_group['hpx_idx'].iloc[brighest_idx]
+            if hpx_idx != which_pix:
+                continue            
+            
             redshifts = these_redshifts.iloc[brighest_idx]
 
             mergeData[i, idx_hpx_idx] = which_pix
@@ -263,7 +267,7 @@ class UnrecBlModel(Degrader):
 
             blData = blData[blData['hpx_idx'] == which_pix]
 
-            compInd = compInd[central_mask]
+            compInd = compInd[central_mask.to_numpy()]
             compInd['hpx_idx'] = which_pix
             
             results_list.append(blData)

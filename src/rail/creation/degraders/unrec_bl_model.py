@@ -121,8 +121,10 @@ class UnrecBlModel(Degrader):
         results = results.to_pandas(index="row_index")
         results.sort_values(by="row_index", inplace=True)
 
+        data['row_index'] = np.arange(len(data))
+        
         ## adding the group id as the last column to data
-        match_data = pd.merge(data, results, left_index=True, right_index=True)            
+        match_data = pd.merge(data, results, left_on='row_index', right_index=True)            
         return match_data, results
 
     def __merge_bl__(self, data, which_pix):

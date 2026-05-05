@@ -229,7 +229,6 @@ class UnrecBlModel(Degrader):
             lonlat=True,
         )
 
-        data['hpx_idx'] = hpx_idx
         idx_list = np.sort(np.unique(hpx_idx))
 
         match_list = []
@@ -244,8 +243,7 @@ class UnrecBlModel(Degrader):
                 mask = np.bitwise_or(mask, hpx_idx == neighbour)
 
             sub_data = data[mask]
-
-            central_mask = sub_data['hpx_idx'] == which_pix
+            central_mask = hpx_idx[mask] == which_pix
             
             before_match_time = time.process_time()            
             # Match for close-by objects

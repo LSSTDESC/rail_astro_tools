@@ -127,99 +127,107 @@ class UnrecBlModel(Degrader):
         match_data = pd.merge(data, results, left_on='row_index', right_index=True)            
         return match_data, results
 
-    def __merge_bl__(self, data, which_pix):
+    def __merge_bl__(self, data: pd.DataFrame, which_pix: int):
         """Merge sources within a group into unrecognized blends."""
-
-        group_id = data["group_id"]
-        unique_id = np.unique(group_id)
-
+    
+        # Filter to groups that contain at least one object in which_pix
+        groups_in_pix = data[data['hpx_idx'] == which_pix]['group_id'].unique()
+        if len(groups_in_pix) == 0:
+            return pd.DataFrame(columns=self._get_merge_columns())
+    
+        data = data[data['group_id'].isin(groups_in_pix)].copy()
+    
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
-        cols = (
+        cols = self._get_merge_columns()
+    
+        # Pre-compute all fluxes at once
+        for b in self.config.bands:
+            data[f'_flux_{b}'] = 10 ** (-(data[b].values - ZERO_POINT) / 2.5)
+    
+        ref_band = self.config.ref_band
+    
+        # Use groupby for vectorized operations
+        grouped = data.groupby('group_id', sort=False)
+    
+        # Vectorized aggregations
+        agg_dict = {
+            ra_label: 'mean',
+            dec_label: 'mean',
+            self.config.redshift_col: ['mean', 'std'],
+            f'_flux_{ref_band}': ['sum', 'max'],
+        }
+    
+        result = grouped.agg(agg_dict)
+        result.columns = [
+            '_'.join(col).strip('_') if isinstance(col, tuple) else col 
+            for col in result.columns
+        ]
+    
+        # Get brightest object info for each group (for hpx_idx and redshift)
+        brightest_indices = grouped[f'_flux_{ref_band}'].idxmax()
+        brightest_data = data.loc[brightest_indices, ['hpx_idx', self.config.redshift_col]]
+        brightest_data.index = brightest_indices.index  # Match group_id index
+    
+        # Filter to only groups where brightest is in which_pix
+        valid_groups = brightest_data[brightest_data['hpx_idx'] == which_pix].index
+    
+        # Apply filter to all results
+        result = result.loc[valid_groups]
+        brightest_data = brightest_data.loc[valid_groups]
+    
+        if len(result) == 0:
+            return pd.DataFrame(columns=cols)
+    
+        # Calculate summed magnitudes for each band
+        for b in self.config.bands:
+            result[b] = grouped[f'_flux_{b}'].sum().loc[valid_groups].apply(
+                lambda flux_sum: -2.5 * np.log10(flux_sum) + ZERO_POINT
+            )
+    
+        # Calculate weighted redshift (only for valid groups)
+        def calc_weighted_z(g):
+            return np.sum(g[self.config.redshift_col].values * g[f'_flux_{ref_band}'].values) / np.sum(g[f'_flux_{ref_band}'].values)
+    
+        weighted_z = grouped.apply(calc_weighted_z, include_groups=False).loc[valid_groups]
+    
+        # Get group sizes
+        group_sizes = grouped.size().loc[valid_groups]
+    
+        # Build final dataframe
+        mergeData_df = pd.DataFrame(index=valid_groups)
+        mergeData_df[ra_label] = result[f'{ra_label}_mean']
+        mergeData_df[dec_label] = result[f'{dec_label}_mean']
+        mergeData_df['hpx_idx'] = which_pix
+    
+        # Add band columns
+        for b in self.config.bands:
+            mergeData_df[b] = result[b]
+    
+        mergeData_df[self.config.redshift_col] = brightest_data[self.config.redshift_col]
+        mergeData_df['group_id'] = valid_groups.astype(int)
+        mergeData_df['n_obj'] = group_sizes.astype(int)
+        mergeData_df['brightest_flux'] = result[f'flux_{ref_band}_max']
+        mergeData_df['total_flux'] = result[f'flux_{ref_band}_sum']
+        mergeData_df['z_brightest'] = brightest_data[self.config.redshift_col]
+        mergeData_df['z_mean'] = result[f'{self.config.redshift_col}_mean']
+        mergeData_df['z_weighted'] = weighted_z
+        mergeData_df['z_stdev'] = result[f'{self.config.redshift_col}_std'].fillna(0.0)
+    
+        # Ensure correct column order and reset index
+        mergeData_df = mergeData_df[cols].reset_index(drop=True)
+    
+        return mergeData_df
+
+    def _get_merge_columns(self):
+        """Helper to get column list."""
+        ra_label, dec_label = self.config.ra_label, self.config.dec_label
+        return (
             [ra_label, dec_label, 'hpx_idx']
             + list(self.config.bands)
             + [self.config.redshift_col]
             + self.blend_info_cols
         )
-
-        N_rows = len(unique_id)
-        N_cols = len(cols)
-
-        # compute the fluxes once for all the galaxies
-        fluxes = {
-            b: 10 ** (-(data[b] - ZERO_POINT) / 2.5)
-            for b in self.config.bands
-        }
-
-        # pull the column indices
-        idx_ra = cols.index(ra_label)
-        idx_dec = cols.index(dec_label)
-        idx_hpx_idx = cols.index('hpx_idx')
-        idx_redshift = cols.index(self.config.redshift_col)
-        idx_n_obj = cols.index("n_obj")
-        idx_brightest_flux = cols.index("brightest_flux")
-        idx_total_flux = cols.index("total_flux")
-        idx_z_brightest = cols.index("z_brightest")
-        idx_z_mean = cols.index("z_mean")
-        idx_z_weighted = cols.index("z_weighted")
-        idx_z_stdev = cols.index("z_stdev")
-
-        mergeData = np.zeros((N_rows, N_cols))
-        for i, id in enumerate(unique_id):
-
-            # Get the mask for this grouping
-            mask = data["group_id"] == id
-
-            # Get the data and fluxes for this grouping
-            this_group = data[mask]
-            if not (this_group['hpx_idx'] == which_pix).any():
-                continue
-
-            these_fluxes = {b: this_group[b] for b in self.config.bands}
-
-            # Pull put some useful stuff
-            n_obj = len(this_group)
-            ref_fluxes = these_fluxes[self.config.ref_band]
-            these_redshifts = this_group[self.config.redshift_col] 
-
-            ## take the average position for the blended source
-            mergeData[i, idx_ra] = this_group[ra_label].mean()
-            mergeData[i, idx_dec] = this_group[dec_label].mean()
-
-            ## sum up the fluxes into the blended source
-            for b in self.config.bands:
-                mergeData[i, cols.index(b)] = (
-                    -2.5 * np.log10(np.sum(these_fluxes[b])) + ZERO_POINT
-                )
-                
-            brighest_idx = np.argmax(ref_fluxes)
-            hpx_idx = this_group['hpx_idx'].iloc[brighest_idx]
-            if hpx_idx != which_pix:
-                continue            
-            
-            redshifts = these_redshifts.iloc[brighest_idx]
-
-            mergeData[i, idx_hpx_idx] = which_pix
-            mergeData[i, idx_redshift] = redshifts
-            mergeData[i, idx_n_obj] = n_obj
-            mergeData[i, idx_brightest_flux] = ref_fluxes.max()
-            mergeData[i, idx_total_flux] = np.sum(ref_fluxes)
-            mergeData[i, idx_z_brightest] = redshifts
-            mergeData[i, idx_z_mean] = np.mean(these_redshifts)
-            mergeData[i, idx_z_weighted] = np.sum(
-                these_redshifts * ref_fluxes
-            ) / np.sum(ref_fluxes)
-            if n_obj > 1:
-                mergeData[i, idx_z_stdev] = np.std(these_redshifts)
-            else:
-                mergeData[i, idx_z_stdev] = 0.0
-
-        mergeData[:, cols.index("group_id")] = unique_id
-        mergeData_df = pd.DataFrame(data=mergeData, columns=cols)
-        mergeData_df["group_id"] = mergeData_df["group_id"].astype(int)
-        mergeData_df["n_obj"] = mergeData_df["n_obj"].astype(int)
-
-        return mergeData_df
-
+    
     def run(self):
         """Return pandas DataFrame with blending errors."""
 

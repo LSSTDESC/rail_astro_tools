@@ -122,33 +122,33 @@ class UnrecBlModel(Degrader):
         results.sort_values(by="row_index", inplace=True)
 
         data['row_index'] = np.arange(len(data))
-        
+
         ## adding the group id as the last column to data
-        match_data = pd.merge(data, results, left_on='row_index', right_index=True)            
+        match_data = pd.merge(data, results, left_on='row_index', right_index=True)
         return match_data, results
 
     def __merge_bl__(self, data: pd.DataFrame, which_pix: int):
         """Merge sources within a group into unrecognized blends."""
-    
+
         # Filter to groups that contain at least one object in which_pix
         groups_in_pix = data[data['hpx_idx'] == which_pix]['group_id'].unique()
         if len(groups_in_pix) == 0:  # pragma: no cover
             return pd.DataFrame(columns=self._get_merge_columns())
-    
+
         data = data[data['group_id'].isin(groups_in_pix)].copy()
-    
+
         ra_label, dec_label = self.config.ra_label, self.config.dec_label
         cols = self._get_merge_columns()
-    
+
         # Pre-compute all fluxes at once
         for b in self.config.bands:
             data[f'_flux_{b}'] = 10 ** (-(data[b].values - ZERO_POINT) / 2.5)
-    
+
         ref_band = self.config.ref_band
-    
+
         # Use groupby for vectorized operations
         grouped = data.groupby('group_id', sort=False)
-    
+
         # Vectorized aggregations
         agg_dict = {
             ra_label: 'mean',
@@ -156,53 +156,53 @@ class UnrecBlModel(Degrader):
             self.config.redshift_col: ['mean', 'std'],
             f'_flux_{ref_band}': ['sum', 'max'],
         }
-    
+
         result = grouped.agg(agg_dict)
         result.columns = [
-            '_'.join(col).strip('_') if isinstance(col, tuple) else col 
+            '_'.join(col).strip('_') if isinstance(col, tuple) else col
             for col in result.columns
         ]
-    
+
         # Get brightest object info for each group (for hpx_idx and redshift)
         brightest_indices = grouped[f'_flux_{ref_band}'].idxmax()
-        brightest_data = data.loc[brightest_indices, ['hpx_idx', self.config.redshift_col]]
+        brightest_data = data.loc[brightest_indices, ['hpx_idx', self.config.redshift_col, self.config.a, self.config.b, self.config.theta] + self.config.copy_cols]
         brightest_data.index = brightest_indices.index  # Match group_id index
-    
+
         # Filter to only groups where brightest is in which_pix
         valid_groups = brightest_data[brightest_data['hpx_idx'] == which_pix].index
-    
+
         # Apply filter to all results
         result = result.loc[valid_groups]
         brightest_data = brightest_data.loc[valid_groups]
-    
+
         if len(result) == 0:  # pragma: no cover
             return pd.DataFrame(columns=cols)
-    
+
         # Calculate summed magnitudes for each band
         for b in self.config.bands:
             result[b] = grouped[f'_flux_{b}'].sum().loc[valid_groups].apply(
                 lambda flux_sum: -2.5 * np.log10(flux_sum) + ZERO_POINT
             )
-    
+
         # Calculate weighted redshift (only for valid groups)
         def calc_weighted_z(g):
             return np.sum(g[self.config.redshift_col].values * g[f'_flux_{ref_band}'].values) / np.sum(g[f'_flux_{ref_band}'].values)
-    
+
         weighted_z = grouped.apply(calc_weighted_z, include_groups=False).loc[valid_groups]
-    
+
         # Get group sizes
         group_sizes = grouped.size().loc[valid_groups]
-    
+
         # Build final dataframe
         mergeData_df = pd.DataFrame(index=valid_groups)
         mergeData_df[ra_label] = result[f'{ra_label}_mean']
         mergeData_df[dec_label] = result[f'{dec_label}_mean']
         mergeData_df['hpx_idx'] = which_pix
-    
+
         # Add band columns
         for b in self.config.bands:
             mergeData_df[b] = result[b]
-    
+
         mergeData_df[self.config.redshift_col] = brightest_data[self.config.redshift_col]
         mergeData_df['group_id'] = valid_groups.astype(int)
         mergeData_df['n_obj'] = group_sizes.astype(int)
@@ -212,10 +212,14 @@ class UnrecBlModel(Degrader):
         mergeData_df['z_mean'] = result[f'{self.config.redshift_col}_mean']
         mergeData_df['z_weighted'] = weighted_z
         mergeData_df['z_stdev'] = result[f'{self.config.redshift_col}_std'].fillna(0.0)
-    
+
+        all_copy_cols = [self.config.a, self.config.b, self.config.theta] + self.config.copy_cols:
+        for col_ in all_copy_cols:
+            mergeData_df[col_] = brightest_data[col_]
+
         # Ensure correct column order and reset index
         mergeData_df = mergeData_df[cols].reset_index(drop=True)
-    
+
         return mergeData_df
 
     def _get_merge_columns(self):
@@ -224,10 +228,11 @@ class UnrecBlModel(Degrader):
         return (
             [ra_label, dec_label, 'hpx_idx']
             + list(self.config.bands)
-            + [self.config.redshift_col]
+            + [self.config.redshift_col, self.config.a, self.config.b, self.config.theta]
             + self.blend_info_cols
+            + self.config.copy_cols
         )
-    
+
     def run(self):
         """Return pandas DataFrame with blending errors."""
 
@@ -248,7 +253,7 @@ class UnrecBlModel(Degrader):
         match_list = []
         results_list = []
 
-        for which_pix in idx_list:            
+        for which_pix in idx_list:
             mask = hpx_idx == which_pix
             all_neighbours = healpy.pixelfunc.get_all_neighbours(self.config.hpx_nside, which_pix)
             for neighbour in all_neighbours:
@@ -256,11 +261,11 @@ class UnrecBlModel(Degrader):
 
             sub_data = data[mask]
             central_mask = hpx_idx[mask] == which_pix
-            
+
             # Match for close-by objects
             matchData, compInd = self.__match_bl__(sub_data)
             matchData['hpx_idx'] = hpx_idx[mask]
-            
+
             # Merge matched objects into unrec-bl
             blData = self.__merge_bl__(matchData, which_pix)
             blData = blData[blData['hpx_idx'] == which_pix]
@@ -269,13 +274,13 @@ class UnrecBlModel(Degrader):
 
             compInd = compInd[central_mask.to_numpy()]
             compInd['hpx_idx'] = which_pix
-            
+
             results_list.append(blData)
             match_list.append(compInd)
-            
+
         blData_all = pd.concat(results_list)
         compInd_all = pd.concat(match_list)
-        
+
         # Return the new catalog and component index in original catalog
         self.add_data("output", blData_all)
         self.add_data("compInd", compInd_all)

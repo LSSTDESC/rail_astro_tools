@@ -115,7 +115,7 @@ class TruthToObservedPipeline(RailPipeline):
                         selectors,
                         config_pars,
                     )
-                previous_stage = self.reddener
+                # previous_stage = self.reddener
             else:
                 previous_stage = the_error_model
 

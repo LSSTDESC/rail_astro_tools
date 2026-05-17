@@ -44,9 +44,11 @@ class UnrecBlModel(Degrader):
         match_size=Param(bool, False, msg="consider object size for finding blends"),
         match_shape=Param(bool, False, msg="consider object shape for finding blends"),
         obj_size=Param(str, "obj_size", msg="object size column name"),
-        a=Param(str, "semi_major", msg="semi major axis column name"),
-        b=Param(str, "semi_minor", msg="semi minor axis column name"),
-        theta=Param(str, "orientation", msg="orientation angle column name"),
+        a=Param(str, "major", msg="major axis column name"),
+        b=Param(str, "minor", msg="minor axis column name"),
+        theta=Param(str, "orientationAngle", msg="orientation angle column name"),
+        copy_cols=Param(list, [], msg="columns to copy to output"),
+        ref_band_mag_cut(float, None, "Required magntitude in ref band to keep objects")
     )
 
     outputs = [("output", PqHandle), ("compInd", PqHandle)]
@@ -262,6 +264,8 @@ class UnrecBlModel(Degrader):
             # Merge matched objects into unrec-bl
             blData = self.__merge_bl__(matchData, which_pix)
             blData = blData[blData['hpx_idx'] == which_pix]
+            if self.config.ref_band_mag_cut is not None:  # pragma: no cover
+                blData = blData[blData[self.config.ref_band] < self.config.ref_band_mag_cut] 
 
             compInd = compInd[central_mask.to_numpy()]
             compInd['hpx_idx'] = which_pix

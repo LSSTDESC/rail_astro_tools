@@ -213,7 +213,7 @@ class UnrecBlModel(Degrader):
         mergeData_df['z_weighted'] = weighted_z
         mergeData_df['z_stdev'] = result[f'{self.config.redshift_col}_std'].fillna(0.0)
 
-        all_copy_cols = [self.config.a, self.config.b, self.config.theta] + self.config.copy_cols:
+        all_copy_cols = [self.config.a, self.config.b, self.config.theta] + self.config.copy_cols
         for col_ in all_copy_cols:
             mergeData_df[col_] = brightest_data[col_]
 

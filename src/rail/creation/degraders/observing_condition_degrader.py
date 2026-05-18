@@ -433,8 +433,8 @@ class ObsCondition(Noisifier):
         # make it a DataFrame object
         assigned_pix = pd.DataFrame(assigned_pix, columns=["pixel"])
         # attach pixels to the catalogue
-        catalog = pd.concat([catalog, assigned_pix], axis=1)
-
+        #catalog = pd.concat([catalog, assigned_pix], axis=1)
+        catalog["pixel"] = assigned_pix
         return catalog
 
     # this is milky way extinction, should be added before other observing conditions is applied

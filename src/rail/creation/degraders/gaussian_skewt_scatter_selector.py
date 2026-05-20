@@ -9,7 +9,7 @@ from scipy.stats import jf_skew_t
 
 from rail.creation.selector import Selector
 
-default_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
+zcosmos_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
                                    z_bin_edges = [0. , 0.3, 0.7, 1. , 1.5, 2. , 2.5, 3. , 4. ],
                                    bias_median_lookup_table = [[ 0.   ,  0.002, -0.002,  0.001,  0.001,  0.001,  0.001,  0.001],
                                            [ 0.   , -0.   , -0.002, -0.004,  0.01 ,  0.01 ,  0.01 ,  0.01 ],
@@ -23,7 +23,27 @@ default_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29
                                    tail_loc_by_mag_i = [-0.0055,  0.1568,  0.2   , 0.2  ],
                                    tail_scale_by_mag_i = [0.2041, 0.3522, 0.237 , 0.237  ],
                                    tail_a_by_mag_i = [ 3.7662, 10.1149,  2.    ,  2.    ],
-                                   tail_b_by_mag_i = [ 4.    , 11.2095,  4.    ,  4.    ])
+                                   tail_b_by_mag_i = [ 4.    , 11.2095,  4.    ,  4.    ],
+                                   model_name='zCOSMOS')
+
+khostovan26_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
+                                       z_bin_edges = [0. , 0.3, 0.7, 1. , 1.5, 2. , 2.5, 3. , 4. ],
+                                       bias_median_lookup_table = [[ 0.   ,  0.002, -0.002,  0.001,  0.001,  0.001,  0.001,  0.001],
+                                               [ 0.   , -0.   , -0.002, -0.004,  0.01 ,  0.01 ,  0.01 ,  0.01 ],
+                                               [ 0.003, -0.   , -0.001, -0.006, -0.002,  0.024,  0.007,  0.   ],
+                                               [ 0.008, -0.005,  0.007, -0.015, -0.019,  0.017,  0.011,  0.   ]],
+                                       bias_std_lookup_table = [[0.01 , 0.02 , 0.026, 0.038, 0.038, 0.038, 0.038, 0.038],
+                                               [0.011, 0.019, 0.025, 0.036, 0.062, 0.062, 0.062, 0.062],
+                                               [0.011, 0.022, 0.027, 0.044, 0.063, 0.115, 0.093, 0.074],
+                                               [0.013, 0.023, 0.025, 0.051, 0.069, 0.12 , 0.103, 0.069]],
+                                       f_tail_by_mag_i = [0.127 , 0.2015, 0.1948, 0.4448],
+                                       tail_loc_by_mag_i = [ 0.0456,  0.0178,  0.015 , -0.0603],
+                                       tail_scale_by_mag_i = [0.0747, 0.1208, 0.4073, 0.2583],
+                                       tail_a_by_mag_i = [0.733 , 0.7062, 1.1444, 0.5407],
+                                       tail_b_by_mag_i = [0.9456, 0.6841, 0.7235, 0.4299],
+                                       model_name='Khostovan_etal_2026')
+
+default_selector_model_dict = zcosmos_selector_model_dict
 
 class GaussianSkewtScatterSelector(Selector):
     """Add a mock photometric redshift column to a dataframe with a Gaussian + skew Student-t error model"""

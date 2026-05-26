@@ -9,7 +9,7 @@ from scipy.stats import jf_skew_t
 
 from rail.creation.selector import Selector
 
-default_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
+zcosmos_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
                                    z_bin_edges = [0. , 0.3, 0.7, 1. , 1.5, 2. , 2.5, 3. , 4. ],
                                    bias_median_lookup_table = [[ 0.   ,  0.002, -0.002,  0.001,  0.001,  0.001,  0.001,  0.001],
                                            [ 0.   , -0.   , -0.002, -0.004,  0.01 ,  0.01 ,  0.01 ,  0.01 ],
@@ -23,7 +23,27 @@ default_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29
                                    tail_loc_by_mag_i = [-0.0055,  0.1568,  0.2   , 0.2  ],
                                    tail_scale_by_mag_i = [0.2041, 0.3522, 0.237 , 0.237  ],
                                    tail_a_by_mag_i = [ 3.7662, 10.1149,  2.    ,  2.    ],
-                                   tail_b_by_mag_i = [ 4.    , 11.2095,  4.    ,  4.    ])
+                                   tail_b_by_mag_i = [ 4.    , 11.2095,  4.    ,  4.    ],
+                                   model_name='gaussian_yin+25_tail_zcosmos') # Gaussian set by Yin et al. 2025. Skew Student t fit to zCOSMOS data
+
+khostovan26_selector_model_dict = dict(mag_i_bin_edges=[15.5, 22.0, 23.0, 24.0, 29.0],
+ z_bin_edges=[0.0, 0.3, 0.7, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0],
+ bias_median_lookup_table=[[0.0, 0.002, -0.002, 0.001, 0.001, 0.001, 0.001, 0.001],
+ [0.0, -0.0, -0.002, -0.004, 0.01, 0.01, 0.01, 0.01],
+ [0.003, -0.0, -0.001, -0.006, -0.002, 0.024, 0.007, 0.0],
+ [0.008, -0.005, 0.007, -0.015, -0.019, 0.017, 0.011, 0.0]],
+ bias_std_lookup_table=[[0.01, 0.02, 0.026, 0.038, 0.038, 0.038, 0.038, 0.038],
+ [0.011, 0.019, 0.025, 0.036, 0.062, 0.062, 0.062, 0.062],
+ [0.011, 0.022, 0.027, 0.044, 0.063, 0.115, 0.093, 0.074],
+ [0.013, 0.023, 0.025, 0.051, 0.069, 0.12, 0.103, 0.069]],
+ f_tail_by_mag_i=[0.0709, 0.0672, 0.0618, 0.2425],
+ tail_loc_by_mag_i=[0.0431, -0.0847, -0.0371, -0.0979],
+ tail_scale_by_mag_i=[0.1585, 0.1018, 0.4109, 0.2499],
+ tail_a_by_mag_i=[8.4098, 0.5426, 1.1277, 0.5394],
+ tail_b_by_mag_i=[8.747, 0.4436, 0.8467, 0.5454],
+ model_name='gaussian_yin+25_tail_khostovan+26')
+
+default_selector_model_dict = khostovan26_selector_model_dict
 
 class GaussianSkewtScatterSelector(Selector):
     """Add a mock photometric redshift column to a dataframe with a Gaussian + skew Student-t error model"""
@@ -110,12 +130,12 @@ class GaussianSkewtScatterSelector(Selector):
 
         # generate redshift bias for each galaxy based on its assigned component
         target_bias = np.zeros(n_target)
-        # core component (Gaussian from Yin+25)
+        # core component (Gaussian parameters taken from Yin+25)
         target_bias[is_core] = self._rng.normal(
             loc=target_mean_bias_component1[is_core],
             scale=target_std_bias_component1[is_core],
         )
-        # tail component (skewed Student-t)
+        # tail component (skewed Student-t fit to data)
         if np.any(is_tail):
             idx_tail = target_mag_i_bin[is_tail]
             tail_samples = np.empty(np.sum(is_tail))
@@ -147,9 +167,10 @@ class GaussianSkewtScatterSelector(Selector):
         )
         z_noisified = data_z + z_bias_samples
 
-        # Re-sample out-of-bounds mock redshifts up to 3 times.
+        # Re-sample out-of-bounds mock redshifts up to nresamp times.
+        nresamp = 10
         invalid_mask = valid_target_mask & ((z_noisified < 0) | (z_noisified > 6))
-        for _ in range(3):
+        for _ in range(nresamp):
             if not np.any(invalid_mask):
                 break
             retry_bias = self._sample_parametric_bias_model(

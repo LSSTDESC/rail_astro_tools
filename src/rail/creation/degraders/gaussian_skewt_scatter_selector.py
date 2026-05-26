@@ -24,7 +24,7 @@ zcosmos_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29
                                    tail_scale_by_mag_i = [0.2041, 0.3522, 0.237 , 0.237  ],
                                    tail_a_by_mag_i = [ 3.7662, 10.1149,  2.    ,  2.    ],
                                    tail_b_by_mag_i = [ 4.    , 11.2095,  4.    ,  4.    ],
-                                   model_name='zCOSMOS')
+                                   model_name='gaussian_yin+25_tail_zcosmos') # Gaussian set by Yin et al. 2025. Skew Student t fit to zCOSMOS data
 
 khostovan26_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. , 29. ],
                                        z_bin_edges = [0. , 0.3, 0.7, 1. , 1.5, 2. , 2.5, 3. , 4. ],
@@ -41,9 +41,9 @@ khostovan26_selector_model_dict = dict(mag_i_bin_edges = [15.5, 22. , 23. , 24. 
                                        tail_scale_by_mag_i = [0.0747, 0.1208, 0.4073, 0.2583],
                                        tail_a_by_mag_i = [0.733 , 0.7062, 1.1444, 0.5407],
                                        tail_b_by_mag_i = [0.9456, 0.6841, 0.7235, 0.4299],
-                                       model_name='Khostovan_etal_2026')
+                                       model_name='gaussian_yin+25_tail_khostovan+26')
 
-default_selector_model_dict = zcosmos_selector_model_dict
+default_selector_model_dict = khostovan26_selector_model_dict
 
 class GaussianSkewtScatterSelector(Selector):
     """Add a mock photometric redshift column to a dataframe with a Gaussian + skew Student-t error model"""
@@ -130,12 +130,12 @@ class GaussianSkewtScatterSelector(Selector):
 
         # generate redshift bias for each galaxy based on its assigned component
         target_bias = np.zeros(n_target)
-        # core component (Gaussian from Yin+25)
+        # core component (Gaussian parameters taken from Yin+25)
         target_bias[is_core] = self._rng.normal(
             loc=target_mean_bias_component1[is_core],
             scale=target_std_bias_component1[is_core],
         )
-        # tail component (skewed Student-t)
+        # tail component (skewed Student-t fit to data)
         if np.any(is_tail):
             idx_tail = target_mag_i_bin[is_tail]
             tail_samples = np.empty(np.sum(is_tail))
@@ -167,9 +167,10 @@ class GaussianSkewtScatterSelector(Selector):
         )
         z_noisified = data_z + z_bias_samples
 
-        # Re-sample out-of-bounds mock redshifts up to 3 times.
+        # Re-sample out-of-bounds mock redshifts up to nresamp times.
+        nresamp = 10
         invalid_mask = valid_target_mask & ((z_noisified < 0) | (z_noisified > 6))
-        for _ in range(3):
+        for _ in range(nresamp):
             if not np.any(invalid_mask):
                 break
             retry_bias = self._sample_parametric_bias_model(

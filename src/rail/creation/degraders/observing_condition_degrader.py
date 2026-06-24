@@ -403,7 +403,7 @@ class ObsCondition(Noisifier):
             )
         else:
             # if catalog doesn't contain position information
-            print("No ra, dec found in catalogue, randomly assign pixels with weights.")
+            self.log.warn("No ra, dec found in catalogue, randomly assign pixels with weights.")
 
             # load weights if specified, otherwise set to uniform weights
             if "weight" in self.maps:
@@ -424,7 +424,7 @@ class ObsCondition(Noisifier):
         overlap = np.isin(set(assigned_pix), pixels, assume_unique=True)
         if not (overlap == True).all():
             # flag all those pixels into -99
-            print(
+            self.log.warn(
                 "Warning: objects found outside given mask, pixel assigned=-99. These objects will be assigned with defualt error from LSST error model!"
             )
             ind = np.isin(assigned_pix, pixels)
@@ -487,7 +487,7 @@ class ObsCondition(Noisifier):
         # if self.map_dict empty, call LsstErrorModel:
         if len(self.config["map_dict"]) == 0:
 
-            print("Empty map_dict, using default parameters from LsstErrorModel.")
+            self.log.info("Empty map_dict, using default parameters from LsstErrorModel.")
             errorModel = LsstErrorModel()
             catalog = errorModel(catalog, random_state=self.rng)
             self.add_data("output", catalog)
@@ -496,7 +496,7 @@ class ObsCondition(Noisifier):
         elif len(self.config["map_dict"]) > 0:
 
             # assign each galaxy to a pixel
-            print("Assigning pixels.")
+            self.log.info("Assigning pixels.")
             catalog = self.assign_pixels(catalog)
 
             # loop over each pixel

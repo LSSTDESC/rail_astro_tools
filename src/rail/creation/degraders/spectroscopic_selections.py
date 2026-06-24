@@ -111,7 +111,7 @@ class SpecSelection(Selector):
         n_tot = self.config.n_tot
         n_selected = np.count_nonzero(self.mask)
         if n_tot > n_selected:
-            print(
+            self.log.warning(
                 "Warning: n_tot is greater than the size of spec-selected "
                 + "sample ("
                 + str(n_selected)
@@ -167,7 +167,7 @@ class SpecSelection_GAMA(SpecSelection):
 
     def selection(self, data):
         """GAMA selection function."""
-        print("Applying the selection from GAMA survey...")
+        self.log.info("Applying the selection from GAMA survey...")
         self.mask *= data[self.config.colnames["r"]] < 19.87
 
     def __repr__(self):
@@ -639,7 +639,7 @@ class SpecSelection_DESI_LRG(SpecSelection):
 
     def selection(self, data):
         """The DESI LRG selection function (simplified)."""
-        print("Applying the selection for DESI LRG (simplified cuts)...")
+        self.log.info("Applying the selection for DESI LRG (simplified cuts)...")
 
         g = data[self.config.colnames["g"]]
         r = data[self.config.colnames["r"]]
@@ -691,7 +691,7 @@ class SpecSelection_DESI_ELG_LOP(SpecSelection):
 
     def selection(self, data):
         """The DESI ELG_LOP selection function."""
-        print("Applying the selection for DESI ELG_LOP...")
+        self.log.info("Applying the selection for DESI ELG_LOP...")
 
         g = data[self.config.colnames["g"]]
         r = data[self.config.colnames["r"]]
@@ -729,7 +729,7 @@ class SpecSelection_DESI_BGS(SpecSelection):
 
     def selection(self, data):
         """The DESI BGS selection function (simplified cut)."""
-        print("Applying the selection for DESI BGS (r < 19.5)...")
+        self.log.info("Applying the selection for DESI BGS (r < 19.5)...")
 
         r = data[self.config.colnames["r"]]
 

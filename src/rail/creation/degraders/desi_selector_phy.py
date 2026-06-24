@@ -131,7 +131,7 @@ class SpecSelection_DESI_Phy(Selector):
         # --- apply selection: keep objects above the threshold ---
         mask = data[threshold_col].values > threshold_all
 
-        print(
+        self.log.info(
             f"SpecSelection_DESI_Phy ({self.config.desi_type}): "
             f"selected {mask.sum()} / {len(mask)} objects "
             f"using column '{threshold_col}'."

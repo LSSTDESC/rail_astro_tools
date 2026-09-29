@@ -31,12 +31,19 @@ import os
 
 import numpy as np
 import pandas as pd
-import tables_io
 from ceci.config import StageParameter as Param
 
 from rail.core.data import DataStore, Hdf5Handle, PqHandle, TableLike
 from rail.core.stage import RailStage
 from rail.creation.selector import Selector
+
+# Re-exported so that `from ...pz_prepare import as_dataframe` keeps working; the definitions
+# moved to _frame_utils so the crossmatch stages can share them without importing a degrader.
+from rail.creation.degraders._frame_utils import (  # noqa: F401
+    as_dataframe,
+    frame_to_hdf5_dict,
+    to_numpy_frame,
+)
 
 # --- DP2 anacal defaults ---------------------------------------------------------------
 # anacal measures r, i, z only, so the colours available are r-i and i-z.
@@ -56,59 +63,6 @@ DEFAULT_CAPS = {
     "SDSS_DR17": 100,
     "PRIMUS": 100,
 }
-
-
-def as_dataframe(data: TableLike) -> pd.DataFrame:
-    """Return ``data`` as a pandas DataFrame, whatever table flavour it arrives as.
-
-    ``PqHandle`` hands back a **pyarrow Table** when a stage runs under ceci, but a DataFrame
-    when a stage is called interactively with one.  The difference is silent and vicious:
-    ``Table.columns`` is the list of column *data*, not column *names*, so a name lookup
-    against it fails in a way that looks nothing like a type error.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-    return tables_io.convert(data, tables_io.types.PD_DATAFRAME)
-
-
-def to_numpy_frame(df: pd.DataFrame) -> pd.DataFrame:
-    """Cast pandas extension dtypes to plain numpy dtypes so the frame survives HDF5.
-
-    This is not cosmetic.  ``tables_io.convert(df, NUMPY_DICT)`` **silently drops** any column
-    it cannot map to a native HDF5 type -- it emits a warning and carries on -- so a catalog
-    with pandas ``string`` or nullable-integer columns loses them without raising.  On the DP2
-    anacal cross-match that would quietly discard ``z_source``, ``z_type``, ``ref_id``,
-    ``ref_cat``, ``region`` and ``desi_spectype``: every column identifying where a redshift
-    came from.
-
-    Strings become fixed-width bytes, nullable integers become float64 (so nulls survive as
-    NaN), and nullable booleans are filled False.
-    """
-    out = df.copy()
-    for col in out.columns:
-        dtype_name = str(out[col].dtype)
-        if dtype_name == "string" or out[col].dtype == object:
-            out[col] = out[col].astype(str).values.astype("S")
-        elif dtype_name.startswith(("Int", "UInt")):
-            out[col] = out[col].astype("float64")
-        elif dtype_name == "Float32" or dtype_name == "Float64":
-            out[col] = out[col].astype("float64")
-        elif dtype_name == "boolean":
-            out[col] = out[col].fillna(False).astype(bool)
-    return out
-
-
-def frame_to_hdf5_dict(df: pd.DataFrame) -> dict:
-    """Convert a DataFrame to the ordered dict-of-arrays that ``Hdf5Handle`` writes."""
-    converted = tables_io.convert(to_numpy_frame(df), tables_io.types.NUMPY_DICT)
-    n_lost = len(df.columns) - len(converted)
-    if n_lost:  # pragma: no cover
-        missing = [c for c in df.columns if c not in converted]
-        raise RuntimeError(
-            f"{n_lost} columns were dropped converting to HDF5: {missing}. "
-            "to_numpy_frame() failed to make them HDF5-safe."
-        )
-    return converted
 
 
 def _bin_cap_mask(

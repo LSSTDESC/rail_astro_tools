@@ -42,6 +42,13 @@ def test_flux2mag():
     out_data = fluxToMag(test_data)
 
 
+@pytest.mark.skip(
+    reason="fetching the SFD dust map is broken outside this repo: dustmaps 1.0.14 requests "
+    "it with the default 'python-requests' User-Agent, which Harvard Dataverse answers with "
+    "403 (a browser or curl User-Agent on the same URL returns 200). Re-enable once dustmaps "
+    "sends a User-Agent, or point RAIL_DUSTMAP_DIR at a directory that already holds the map, "
+    "which makes fetch_map() return without touching the network."
+)
 @pytest.mark.slow
 def test_dereddener():
     testFile = find_rail_file(

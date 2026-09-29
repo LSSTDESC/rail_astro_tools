@@ -269,3 +269,413 @@ def test_crossmatch_reports_a_missing_column(tiny_catalogs):
 def test_crossmatch_is_not_parallel():
     """Forking under MPI would hang rather than fail, so ceci must refuse --mpi."""
     assert TractCrossMatch.parallel is False
+
+
+# --------------------------------------------------------------------------------------- #
+# edge cases
+# --------------------------------------------------------------------------------------- #
+
+def _write_shear(path, **columns):
+    """Write a one-group shear HDF5 from column arrays."""
+    with h5py.File(path, "w") as handle:
+        group = handle.create_group("shear/ns")
+        for name, values in columns.items():
+            group.create_dataset(name, data=np.asarray(values))
+    return str(path)
+
+
+@pytest.fixture(name="make_shear")
+def fixture_make_shear(tmp_path):
+    counter = {"n": 0}
+
+    def _make(**columns):
+        counter["n"] += 1
+        return _write_shear(tmp_path / f"shear{counter['n']}.hdf5", **columns)
+
+    return _make
+
+
+# -- skymap ------------------------------------------------------------------------------ #
+
+def test_find_tract_rejects_mismatched_shapes():
+    with pytest.raises(ValueError, match="differ in shape"):
+        find_tract_id_array([1.0, 2.0], [3.0])
+
+
+# -- the cut grammar --------------------------------------------------------------------- #
+
+def test_parse_cuts_falls_back_to_the_raw_string_on_bad_yaml():
+    """An unclosed bracket is not valid YAML; the operand stays the literal text."""
+    assert parse_cuts(["x == [1, 2"], "t") == [["x", "==", "[1, 2"]]
+
+
+def test_parse_cuts_accepts_a_bytes_cut():
+    assert parse_cuts([b"is_primary == True"], "t") == [["is_primary", "==", True]]
+
+
+@pytest.mark.parametrize(
+    "operator, value, expected",
+    [
+        ("==", 2, [False, True, False]),
+        ("!=", 2, [True, False, True]),
+        ("<", 2, [True, False, False]),
+        ("<=", 2, [True, True, False]),
+        (">", 2, [False, False, True]),
+        (">=", 2, [False, True, True]),
+        ("in", [1, 3], [True, False, True]),
+        ("not in", [1, 3], [False, True, False]),
+    ],
+)
+def test_every_operator(operator, value, expected):
+    columns = {"x": np.array([1, 2, 3])}
+    mask = apply_cuts(columns.__getitem__, [["x", operator, value]], 3, "t")
+    assert mask.tolist() == expected
+
+
+def test_str_operands_match_a_bytes_column_for_list_operators():
+    columns = {"s": np.array([b"a", b"b", b"c"])}
+    mask = apply_cuts(columns.__getitem__, [["s", "not in", ["a", "c"]]], 3, "t")
+    assert mask.tolist() == [False, True, False]
+
+
+def test_bytes_operands_match_a_str_column():
+    columns = {"s": np.array(["a", "b"], dtype=object)}
+    assert apply_cuts(columns.__getitem__, [["s", "==", b"a"]], 2, "t").tolist() == [True, False]
+    mask = apply_cuts(columns.__getitem__, [["s", "in", [b"b"]]], 2, "t")
+    assert mask.tolist() == [False, True]
+
+
+def test_apply_cuts_logs_and_counts_non_finite_drops():
+    messages = []
+    columns = {"m": np.array([1.0, np.nan, 5.0])}
+    mask = apply_cuts(columns.__getitem__, [["m", "<", 3.0]], 3, "t", messages.append)
+    assert mask.tolist() == [True, False, False]
+    assert any("non-finite" in m for m in messages)
+
+
+def test_unknown_operator_is_rejected_by_the_low_level_helper():
+    with pytest.raises(ValueError, match="not one of"):
+        parse_cuts([["x", "~=", 1]], "t")
+
+
+# -- the fork guard ----------------------------------------------------------------------- #
+
+def test_assert_closed_detects_an_open_file(tmp_path):
+    from rail.creation.degraders.crossmatch import _assert_closed
+
+    path = _write_shear(tmp_path / "open.hdf5", ra=np.array([1.0]))
+    _assert_closed(path)  # nothing open yet
+    handle = h5py.File(path, "r")
+    try:
+        with pytest.raises(RuntimeError, match="still open"):
+            _assert_closed(path)
+    finally:
+        handle.close()
+    _assert_closed(path)
+
+
+# -- AssignTract ---------------------------------------------------------------------------- #
+
+def test_assign_tract_applies_cuts_first():
+    DataStore.allow_overwrite = True
+    frame = pd.DataFrame({"ra": [45.0, 46.0], "dec": [-10.0, -10.0], "keep": [True, False]})
+    out = AssignTract.make_stage(name="at_cuts", cuts=["keep == True"])(frame).data
+    assert len(out) == 1
+
+
+def test_assign_tract_drops_or_keeps_non_finite():
+    DataStore.allow_overwrite = True
+    frame = pd.DataFrame({"ra": [45.0, np.nan], "dec": [-10.0, -10.0]})
+    dropped = AssignTract.make_stage(name="at_drop")(frame).data
+    assert len(dropped) == 1
+    kept = AssignTract.make_stage(name="at_keep", drop_non_finite=False)(frame).data
+    assert len(kept) == 2
+    assert (kept["tract"] == NO_TRACT).sum() == 1
+
+
+# -- TractCrossMatch: configuration and guards ---------------------------------------------- #
+
+def test_run_refuses_an_mpi_communicator(tiny_catalogs):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_mpi")(reference).data
+    stage = TractCrossMatch.make_stage(name="xm_mpi", shear_catalog=path, ref_cols=["ref_id"])
+    stage._comm = object()  # ceci exposes `comm` as a read-only property over this
+    with pytest.raises(RuntimeError, match="cannot run under MPI"):
+        stage(reference)
+
+
+def test_missing_shear_group_is_reported(tiny_catalogs):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_grp")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_grp", shear_catalog=path, shear_group="shear/nope", ref_cols=["ref_id"]
+    )
+    with pytest.raises(KeyError, match="shear/nope"):
+        stage(reference)
+
+
+def test_no_common_tract_is_reported(tiny_catalogs, make_shear):
+    DataStore.allow_overwrite = True
+    _, reference, tract = tiny_catalogs
+    elsewhere = make_shear(
+        id=np.array([1], dtype="int64"), ra=np.array([200.0]), dec=np.array([30.0]),
+        tract=np.array([tract + 5000], dtype="int64"), is_primary=np.array([True]),
+    )
+    reference = AssignTract.make_stage(name="a_none")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_none", shear_catalog=elsewhere, shear_cols=["id"], ref_cols=["ref_id"], nproc=1
+    )
+    with pytest.raises(RuntimeError, match="no tract is present in both"):
+        stage(reference)
+
+
+def test_reference_column_collision_is_reported(tiny_catalogs):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_coll")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_coll", shear_catalog=path, shear_cols=["id"],
+        ref_cols=["ref_id", "ra"], ref_rename={}, nproc=1,
+    )
+    with pytest.raises(ValueError, match="would overwrite"):
+        stage(reference)
+
+
+def test_nproc_follows_omp_num_threads(monkeypatch, tiny_catalogs):
+    path, _, _ = tiny_catalogs
+    stage = TractCrossMatch.make_stage(name="xm_nproc", shear_catalog=path, nproc=0)
+    monkeypatch.setenv("OMP_NUM_THREADS", "3")
+    assert stage._resolve_nproc(10) == min(3, len(os.sched_getaffinity(0)))
+    # never more workers than there are tracts to work on
+    assert stage._resolve_nproc(1) == 1
+
+
+# -- TractCrossMatch: worker paths ------------------------------------------------------------ #
+
+def test_reference_cuts_are_applied(tiny_catalogs):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_refcut")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_refcut", shear_catalog=path, shear_cols=["id"],
+        ref_cols=["ref_id"], ref_cuts=["ref_id == NOPE"], nproc=1,
+    )
+    with pytest.raises(RuntimeError, match="no tract is present in both"):
+        stage(reference)
+
+
+def test_everything_cut_gives_an_empty_table(tiny_catalogs):
+    """All shear rows removed by the cuts -- the empty-output branch."""
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_empty")(reference).data
+    out = TractCrossMatch.make_stage(
+        name="xm_empty", shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id", "z"],
+        shear_cuts=["is_primary == False", "id > 1000"], nproc=1,
+    )(reference).data
+    assert len(out) == 0
+    assert "ref_id" in out.columns and "match_sep_arcsec" in out.columns
+
+
+def test_dedup_keeps_the_first_of_each_duplicate(make_shear):
+    DataStore.allow_overwrite = True
+    ra, dec = 45.0, -10.0
+    tract = int(find_tract_id_array([ra], [dec])[0])
+    path = make_shear(
+        id=np.array([7, 7, 8], dtype="int64"),
+        ra=np.array([ra, ra, ra + 1.0e-3]),
+        dec=np.array([dec, dec, dec]),
+        tract=np.full(3, tract, dtype="int64"),
+        is_primary=np.array([True, True, True]),
+    )
+    reference = AssignTract.make_stage(name="a_dedup")(
+        pd.DataFrame(dict(ref_id=["R1"], ra=[ra], dec=[dec]))
+    ).data
+    common = dict(shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id"], nproc=1)
+    with_dedup = TractCrossMatch.make_stage(
+        name="xm_dedup", dedup_col="id", **common
+    )(reference).data
+    without = TractCrossMatch.make_stage(name="xm_nodedup", **common)(reference).data
+    assert sorted(with_dedup["id"].tolist()) == [7]
+    assert sorted(without["id"].tolist()) == [7, 7]
+
+
+def test_max_tracts_limits_the_work(make_shear):
+    DataStore.allow_overwrite = True
+    positions = [(45.0, -10.0), (60.0, -10.0), (75.0, -10.0)]
+    tracts = [int(find_tract_id_array([r], [d])[0]) for r, d in positions]
+    path = make_shear(
+        id=np.arange(3, dtype="int64"),
+        ra=np.array([r for r, _ in positions]),
+        dec=np.array([d for _, d in positions]),
+        tract=np.array(tracts, dtype="int64"),
+        is_primary=np.ones(3, dtype=bool),
+    )
+    reference = AssignTract.make_stage(name="a_max")(
+        pd.DataFrame(dict(ref_id=[f"R{i}" for i in range(3)],
+                          ra=[r for r, _ in positions], dec=[d for _, d in positions]))
+    ).data
+    out = TractCrossMatch.make_stage(
+        name="xm_max", shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id"],
+        nproc=1, max_tracts=1,
+    )(reference).data
+    assert len(out) == 1
+
+
+def test_runs_with_a_worker_pool(make_shear):
+    """The multiprocessing path: _SHARED must reach the workers through the fork."""
+    DataStore.allow_overwrite = True
+    positions = [(45.0, -10.0), (60.0, -10.0)]
+    tracts = [int(find_tract_id_array([r], [d])[0]) for r, d in positions]
+    path = make_shear(
+        id=np.arange(2, dtype="int64"),
+        ra=np.array([r for r, _ in positions]),
+        dec=np.array([d for _, d in positions]),
+        tract=np.array(tracts, dtype="int64"),
+        is_primary=np.ones(2, dtype=bool),
+    )
+    reference = AssignTract.make_stage(name="a_pool")(
+        pd.DataFrame(dict(ref_id=["R0", "R1"],
+                          ra=[r for r, _ in positions], dec=[d for _, d in positions]))
+    ).data
+    common = dict(shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id"])
+    serial = TractCrossMatch.make_stage(name="xm_ser", nproc=1, **common)(reference).data
+    pooled = TractCrossMatch.make_stage(name="xm_pool", nproc=2, **common)(reference).data
+    bounded = TractCrossMatch.make_stage(
+        name="xm_bound", nproc=2, max_inflight=1, **common
+    )(reference).data
+    for out in (pooled, bounded):
+        assert sorted(out["id"].tolist()) == sorted(serial["id"].tolist())
+        assert len(out) == 2
+
+
+# -- the edge halo ------------------------------------------------------------------------- #
+
+def test_halo_reads_tracts_that_hold_no_references_of_their_own(make_shear):
+    DataStore.allow_overwrite = True
+    ra, dec = 45.0, -10.0
+    tract = int(find_tract_id_array([ra], [dec])[0])
+    # a shear tract far from any reference: the halo finds nothing and it returns empty
+    path = make_shear(
+        id=np.array([1], dtype="int64"), ra=np.array([ra]), dec=np.array([dec]),
+        tract=np.array([tract], dtype="int64"), is_primary=np.array([True]),
+    )
+    reference = AssignTract.make_stage(name="a_halo_far")(
+        pd.DataFrame(dict(ref_id=["R1"], ra=[ra + 10.0], dec=[dec]))
+    ).data
+    out = TractCrossMatch.make_stage(
+        name="xm_halo_far", shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id"],
+        edge_halo_arcsec=2.0, nproc=1,
+    )(reference).data
+    assert len(out) == 0
+
+
+def test_halo_reference_selection_handles_the_ra_wrap():
+    """A tract straddling ra = 0 must not be treated as spanning the whole sky."""
+    from rail.creation.degraders.crossmatch import _SHARED, _halo_references
+
+    ref_ra = np.array([359.9995, 180.0, 0.0005])
+    ref_dec = np.array([-10.0, -10.0, -10.0])
+    order = np.argsort(ref_dec, kind="stable")
+    _SHARED.clear()
+    _SHARED.update(
+        ref_ra=ref_ra, ref_dec=ref_dec,
+        ref_dec_order=order, ref_dec_sorted=ref_dec[order],
+    )
+    shear_ra = np.array([359.999, 0.001])   # spans the wrap
+    shear_dec = np.array([-10.0, -10.0])
+    out = _halo_references(np.empty(0, dtype=np.int64), shear_ra, shear_dec, 10.0)
+    assert set(out.tolist()) == {0, 2}      # the far-side reference at ra=180 is excluded
+    _SHARED.clear()
+
+
+def test_scalar_str_operand_matches_a_bytes_column():
+    columns = {"s": np.array([b"a", b"b"])}
+    mask = apply_cuts(columns.__getitem__, [["s", "==", "a"]], 2, "t")
+    assert mask.tolist() == [True, False]
+
+
+def test_one_cut_rejects_an_operator_parse_cuts_would_have_caught():
+    """Defensive: reachable only by bypassing parse_cuts."""
+    from rail.creation.degraders.crossmatch import _one_cut
+
+    with pytest.raises(ValueError, match="unknown operator"):
+        _one_cut(np.array([1, 2]), "~~", 1)
+
+
+def test_worker_skips_a_tract_with_no_references(make_shear):
+    """Without a halo the parent never dispatches such a tract, but the guard still holds."""
+    from rail.creation.degraders.crossmatch import (
+        _SHARED, _WORKER, _init_worker, _match_tract,
+    )
+
+    path = make_shear(
+        id=np.array([1], dtype="int64"), ra=np.array([45.0]), dec=np.array([-10.0]),
+        tract=np.array([7809], dtype="int64"), is_primary=np.array([True]),
+    )
+    _SHARED.clear()
+    _SHARED.update(ref_ra=np.array([45.0]), ref_dec=np.array([-10.0]),
+                   ref_rows={}, runs={7809: [(0, 1)]})
+    _init_worker(dict(
+        shear_catalog=path, shear_group="shear/ns", shear_ra_col="ra", shear_dec_col="dec",
+        shear_cuts=[], dedup_col="", read_cols=["ra", "dec", "id"],
+        emit_cols=["ra", "dec", "id"], max_sep_arcsec=0.75, edge_halo_arcsec=0.0,
+    ))
+    try:
+        result = _match_tract(7809)
+        assert result["n_shear"] == 0 and len(result["sep"]) == 0
+    finally:
+        _SHARED.clear()
+        _WORKER.clear()
+
+
+def test_halo_returns_early_when_no_reference_is_near():
+    from rail.creation.degraders.crossmatch import _SHARED, _halo_references
+
+    ref_dec = np.array([80.0])
+    order = np.argsort(ref_dec, kind="stable")
+    _SHARED.clear()
+    _SHARED.update(ref_ra=np.array([10.0]), ref_dec=ref_dec,
+                   ref_dec_order=order, ref_dec_sorted=ref_dec[order])
+    try:
+        given = np.array([3], dtype=np.int64)
+        # the only reference is 90 degrees away in dec, so nothing is added
+        assert _halo_references(given, np.array([10.0]), np.array([-10.0]), 5.0) is given
+    finally:
+        _SHARED.clear()
+
+
+def test_inflight_window_wider_than_the_task_list(make_shear):
+    """The priming loop must stop when it runs out of tracts.
+
+    Two tracts, not one: with a single task nproc collapses to 1 and the serial path runs
+    instead, so _dispatch is never reached.
+    """
+    DataStore.allow_overwrite = True
+    positions = [(45.0, -10.0), (60.0, -10.0)]
+    tracts = [int(find_tract_id_array([r], [d])[0]) for r, d in positions]
+    path = make_shear(
+        id=np.arange(2, dtype="int64"),
+        ra=np.array([r for r, _ in positions]),
+        dec=np.array([d for _, d in positions]),
+        tract=np.array(tracts, dtype="int64"),
+        is_primary=np.ones(2, dtype=bool),
+    )
+    reference = AssignTract.make_stage(name="a_inflight")(
+        pd.DataFrame(dict(ref_id=["R0", "R1"],
+                          ra=[r for r, _ in positions], dec=[d for _, d in positions]))
+    ).data
+    out = TractCrossMatch.make_stage(
+        name="xm_inflight", shear_catalog=path, shear_cols=["id"], ref_cols=["ref_id"],
+        nproc=2, max_inflight=8,
+    )(reference).data
+    assert len(out) == 2
+
+
+def test_pipeline_rejects_an_unknown_catalog_config_key():
+    from rail.pipelines.degradation.crossmatch_pipeline import CrossMatchPipeline
+
+    with pytest.raises(KeyError, match="unknown catalog_config keys"):
+        CrossMatchPipeline(dict(not_a_real_key=1))

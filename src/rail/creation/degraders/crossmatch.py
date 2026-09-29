@@ -369,9 +369,11 @@ def apply_cuts(get_column, cuts, n_rows: int, label: str, log=None) -> np.ndarra
         values = np.asarray(get_column(column))
         _check_operand_type(values, value, cut, label)
         mask = np.asarray(_one_cut(values, operator, value))
-        if mask.dtype != bool or mask.shape != values.shape:
-            # `arr == "True"` on a bool column returns the *scalar* False, not an array, and
-            # would otherwise select nothing at all without a word of complaint.
+        if mask.dtype != bool or mask.shape != values.shape:  # pragma: no cover
+            # A backstop.  On numpy 1 `bool_array == "True"` returned the *scalar* False
+            # rather than an array, which selected nothing without a word of complaint.
+            # _check_operand_type above now rejects those operands before they get here, so
+            # this only fires for a dtype combination neither of us anticipated.
             raise ValueError(
                 f"{label} cut {cut!r} on a column of dtype {values.dtype} produced a "
                 f"{mask.dtype} of shape {mask.shape}, not a boolean mask of shape "

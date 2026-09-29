@@ -1,5 +1,8 @@
 """Unit tests for the pz_prepare curation stages and the table helpers they share."""
 
+import importlib
+import types
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -295,19 +298,125 @@ def test_som_resampler_declares_two_inputs():
     assert [tag for tag, _ in SOMResampler.outputs] == ["output"]
 
 
-@needs_somoclu
-def test_som_resampler_runs(catalog):  # pragma: no cover - needs a working somoclu
-    DataStore.allow_overwrite = True
+def _som_inputs(catalog):
+    """A pool and a population carrying the three bands the default SOM features need."""
     pool = catalog.rename(columns={"z": "redshift"}).copy()
     for band in ("r", "z"):
         pool[f"lsst_{band}_mag_gauss2"] = pool["lsst_i_mag_gauss2"] + 0.2
     population = pool.sample(frac=1.0, random_state=1).reset_index(drop=True)
+    return pool, population
+
+
+@needs_somoclu
+def test_som_resampler_trains_a_real_som(catalog):
+    """The genuine article: a 4x4 map, two epochs, one pass."""
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
     stage = SOMResampler.make_stage(
-        name="som_small", som_size=[4, 4], n_epochs=2, n_repeat=1, n_population=50
+        name="som_real", som_size=[4, 4], n_epochs=2, n_repeat=1, n_population=50
     )
     out = stage(pool, population).data
     assert isinstance(out, dict)
+    assert set(out) >= {"lsst_i_mag_gauss2", "lsst_r_mag_gauss2", "lsst_z_mag_gauss2"}
     assert len(out["lsst_i_mag_gauss2"]) > 0
+    # the output is drawn from the pool, so the magnitudes must come from it
+    assert set(np.asarray(out["lsst_i_mag_gauss2"])) <= set(pool["lsst_i_mag_gauss2"])
+
+
+class _StubSOMStage:
+    """Stands in for SOMSpecSelector: selects the first half of the pool it is given."""
+
+    calls = []
+
+    def __init__(self, name, output, **config):
+        self.name = name
+        self.output = output
+        self.config = config
+
+    @classmethod
+    def make_stage(cls, name, output, **config):
+        return cls(name, output, **config)
+
+    def __call__(self, input_data, spec_data):
+        type(self).calls.append(
+            dict(name=self.name, n_pool=len(input_data), n_spec=len(spec_data),
+                 config=self.config)
+        )
+        selected = input_data.iloc[: len(input_data) // 2]
+        return types.SimpleNamespace(data=selected)
+
+
+@pytest.fixture(name="stub_som")
+def fixture_stub_som(monkeypatch):
+    """Exercise SOMResampler.run() without somoclu, which is a heavy optional dependency."""
+    module = importlib.import_module("rail.creation.degraders.specz_som")
+    _StubSOMStage.calls = []
+    monkeypatch.setattr(module, "SOMSpecSelector", _StubSOMStage)
+    return _StubSOMStage
+
+
+def test_som_resampler_stacks_every_pass(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    stage = SOMResampler.make_stage(
+        name="som_stub", som_size=[4, 4], n_epochs=2, n_repeat=3, n_population=40,
+        mag_range_out=[0.0, 99.0],
+    )
+    out = stage(pool, population).data
+    assert len(stub_som.calls) == 3, "one sub-stage per pass"
+    assert [c["n_spec"] for c in stub_som.calls] == [40, 40, 40]
+    # three passes, each returning half the pool, stacked
+    assert len(out["lsst_i_mag_gauss2"]) == 3 * (len(pool) // 2)
+    assert stub_som.calls[0]["config"]["n_epochs"] == 2
+    assert stub_som.calls[0]["config"]["som_size"] == [4, 4]
+
+
+def test_som_resampler_applies_the_output_magnitude_range(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    wide = SOMResampler.make_stage(
+        name="som_wide", n_repeat=1, n_population=40, mag_range_out=[0.0, 99.0]
+    )(pool, population).data
+    narrow = SOMResampler.make_stage(
+        name="som_narrow", n_repeat=1, n_population=40, mag_range_out=[19.0, 21.0]
+    )(pool, population).data
+    assert len(narrow["lsst_i_mag_gauss2"]) < len(wide["lsst_i_mag_gauss2"])
+    mags = np.asarray(narrow["lsst_i_mag_gauss2"])
+    assert ((mags > 19.0) & (mags < 21.0)).all()
+
+
+def test_som_resampler_cuts_the_pool_on_magnitude(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    SOMResampler.make_stage(
+        name="som_magcut", n_repeat=1, n_population=40, mag_cut_pool=21.0,
+        mag_range_out=[0.0, 99.0],
+    )(pool, population).data
+    n_expected = int((pool["lsst_i_mag_gauss2"] < 21.0).sum())
+    assert stub_som.calls[0]["n_pool"] == n_expected
+
+
+def test_som_resampler_is_reproducible(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    first = SOMResampler.make_stage(
+        name="som_r1", n_repeat=2, n_population=40, seed=5, mag_range_out=[0.0, 99.0]
+    )(pool, population).data
+    second = SOMResampler.make_stage(
+        name="som_r2", n_repeat=2, n_population=40, seed=5, mag_range_out=[0.0, 99.0]
+    )(pool, population).data
+    assert np.array_equal(
+        np.asarray(first["lsst_i_mag_gauss2"]), np.asarray(second["lsst_i_mag_gauss2"])
+    )
+
+
+def test_som_resampler_reports_missing_feature_columns(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    pool = pool.drop(columns=["lsst_r_mag_gauss2"])
+    stage = SOMResampler.make_stage(name="som_miss", n_repeat=1, n_population=40)
+    with pytest.raises(KeyError, match="lsst_r_mag_gauss2"):
+        stage(pool, population)
 
 
 # --------------------------------------------------------------------------------------- #
@@ -340,3 +449,33 @@ def test_set_stage_threads_never_lowers_max_threads(tmp_path):
     )
     set_stage_threads(str(path), {"a": 4})
     assert yaml.safe_load(path.read_text())["site"]["max_threads"] == 64
+
+
+def test_missing_quality_column_is_reported(catalog):
+    DataStore.allow_overwrite = True
+    stage = PreTrainTestSplitter.make_stage(
+        name="split_qmiss", apply_quality_cut=True, quality_col="nope"
+    )
+    with pytest.raises(KeyError, match="nope"):
+        stage(catalog)
+
+
+def test_group_split_treats_nulls_as_individual_rows(catalog):
+    """A null group key must not collapse every such row into one giant group."""
+    DataStore.allow_overwrite = True
+    catalog = catalog.copy()
+    catalog.loc[:9, "ref_id"] = None
+    train, test = PreTrainTestSplitter.make_stage(
+        name="split_gnull", group_col="ref_id"
+    )(catalog)
+    both = len(train.data) + len(test.data)
+    assert both == len(catalog)
+    shared = set(train.data["ref_id"].dropna()) & set(test.data["ref_id"].dropna())
+    assert shared == set()
+
+
+def test_pz_prepare_pipeline_rejects_an_unknown_key():
+    from rail.pipelines.degradation.hscfy_pz_prepare import HscfyPzPreparePipeline
+
+    with pytest.raises(KeyError, match="unknown catalog_config keys"):
+        HscfyPzPreparePipeline(dict(not_a_real_key=1))

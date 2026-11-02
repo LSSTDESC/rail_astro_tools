@@ -43,6 +43,7 @@ def test_flux2mag():
 
 
 @pytest.mark.slow
+@pytest.mark.skip(reason="Download is failing")
 def test_dereddener():
     testFile = find_rail_file(
         os.path.join("examples_data", "testdata", "rubin_dm_dc2_example2.pq")

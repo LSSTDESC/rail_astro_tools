@@ -443,6 +443,38 @@ def test_reference_column_collision_is_reported(tiny_catalogs):
         stage(reference)
 
 
+def test_shear_aliases_copy_columns(tiny_catalogs):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_alias")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_alias", shear_catalog=path, shear_cols=["id"],
+        shear_aliases={"shear_id": "id"}, ref_cols=["ref_id", "z"], nproc=1,
+    )
+    out = stage(reference).data
+    assert out["shear_id"].tolist() == out["id"].tolist() == [1]
+
+
+@pytest.mark.parametrize(
+    "aliases, error, match",
+    [
+        ({"x": "is_primary"}, KeyError, "not among the carried"),  # read for a cut, not carried
+        ({"z": "id"}, ValueError, "would overwrite"),  # a reference column's name
+        ({"match_sep_arcsec": "id"}, ValueError, "would overwrite"),
+    ],
+)
+def test_shear_alias_errors(tiny_catalogs, aliases, error, match):
+    DataStore.allow_overwrite = True
+    path, reference, _ = tiny_catalogs
+    reference = AssignTract.make_stage(name="a_alias_bad")(reference).data
+    stage = TractCrossMatch.make_stage(
+        name="xm_alias_bad", shear_catalog=path, shear_cols=["id"],
+        shear_aliases=aliases, ref_cols=["ref_id", "z"], nproc=1,
+    )
+    with pytest.raises(error, match=match):
+        stage(reference)
+
+
 def test_nproc_follows_omp_num_threads(monkeypatch, tiny_catalogs):
     path, _, _ = tiny_catalogs
     stage = TractCrossMatch.make_stage(name="xm_nproc", shear_catalog=path, nproc=0)

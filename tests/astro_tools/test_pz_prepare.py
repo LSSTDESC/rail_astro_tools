@@ -1,8 +1,5 @@
 """Unit tests for the pz_prepare curation stages and the table helpers they share."""
 
-import importlib
-import types
-
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -17,9 +14,17 @@ from rail.creation.degraders._frame_utils import (
     to_numpy_frame,
 )
 from rail.creation.degraders.pz_prepare import (
+    ReferenceHoldoutSplitter,
     MagRedshiftDownsampler,
     PreTrainTestSplitter,
     SOMResampler,
+    SOMZCellResampler,
+    allocate_cell_targets,
+    draw_cell_members,
+    redshift_bins,
+    som_features,
+    train_som,
+    zcell_fractions,
 )
 from rail.pipelines.degradation.hscfy_pz_prepare import set_stage_threads
 
@@ -234,6 +239,56 @@ def test_missing_group_column_is_reported(catalog):
         stage(catalog)
 
 
+def test_require_detected_drops_nan_and_sentinel(catalog):
+    """A row without a detection in a required band leaves both sides; others are untouched."""
+    DataStore.allow_overwrite = True
+    data = catalog.copy()
+    data["mag_r"] = 22.0
+    data.loc[[0, 5], "mag_r"] = np.nan
+    data.loc[[9], "lsst_i_mag_gauss2"] = 40.0
+    stage = PreTrainTestSplitter.make_stage(
+        name="split_det", require_detected=["mag_r", "lsst_i_mag_gauss2"], nondetect_val=40.0
+    )
+    train, test = stage(data)
+    kept = set(train.data["object_id"]) | set(test.data["object_id"])
+    assert kept == set(data["object_id"]) - {0, 5, 9}
+    # without a sentinel only the NaNs go
+    stage = PreTrainTestSplitter.make_stage(name="split_det_nan", require_detected=["mag_r"])
+    train, test = stage(data)
+    assert len(train.data) + len(test.data) == len(data) - 2
+
+
+def test_require_detected_missing_column(catalog):
+    DataStore.allow_overwrite = True
+    stage = PreTrainTestSplitter.make_stage(name="split_det_miss", require_detected=["mag_q"])
+    with pytest.raises(KeyError, match="mag_q"):
+        stage(catalog)
+
+
+def test_holdout_split_holds_out_every_shared_id(catalog):
+    """Rows sharing an object id OR a ref_id with the holdout go to pre-test, nothing else."""
+    DataStore.allow_overwrite = True
+    holdout = pd.DataFrame({"object_id": [0, 50, 999], "ref_id": ["R010", "XXX", "YYY"]})
+    stage = ReferenceHoldoutSplitter.make_stage(
+        name="split_hold", holdout_cols=["object_id", "ref_id"], redshift_min=0.0
+    )
+    stage.set_data("holdout", holdout)
+    train, test = stage(catalog)
+    held = set(test.data["object_id"])
+    # object 0, object 50, and both rows of R010 (objects 20, 21); 999 is not in the input
+    assert held == {0, 50, 20, 21}
+    assert set(train.data["object_id"]) == set(catalog["object_id"]) - held
+    assert not set(train.data["ref_id"]) & set(holdout["ref_id"])
+
+
+def test_holdout_split_missing_column(catalog):
+    DataStore.allow_overwrite = True
+    stage = ReferenceHoldoutSplitter.make_stage(name="split_hold_miss", holdout_cols=["mm_object_id"])
+    stage.set_data("holdout", pd.DataFrame({"mm_object_id": [1]}))
+    with pytest.raises(KeyError, match="mm_object_id"):
+        stage(catalog)
+
+
 # --------------------------------------------------------------------------------------- #
 # MagRedshiftDownsampler
 # --------------------------------------------------------------------------------------- #
@@ -292,10 +347,53 @@ def test_downsampler_reports_a_missing_column(dense_catalog):
 # SOMResampler
 # --------------------------------------------------------------------------------------- #
 
-def test_som_resampler_declares_two_inputs():
-    """The pool and the population; the population binds to a pipeline-level input."""
+def test_som_resampler_declares_its_handles():
+    """The pool and the population in; the test set and the per-cell occupancy out."""
     assert [tag for tag, _ in SOMResampler.inputs] == ["input", "population"]
-    assert [tag for tag, _ in SOMResampler.outputs] == ["output"]
+    assert [tag for tag, _ in SOMResampler.outputs] == ["output", "cells"]
+
+
+def test_allocate_cell_targets_is_exact_and_proportional():
+    n_pop = np.array([50, 30, 20, 0])
+    n_pool = np.array([5, 1, 9, 3])
+    targets = allocate_cell_targets(n_pop, n_pool, 1000)
+    assert targets.tolist() == [500, 300, 200, 0]
+    # largest remainder keeps the total exact when the shares do not divide evenly
+    assert allocate_cell_targets(np.array([1, 1, 1]), np.ones(3), 100).sum() == 100
+
+
+def test_allocate_cell_targets_renormalises_over_cells_with_pool_objects():
+    """A cell the pool cannot fill gets nothing; its population share moves to the others."""
+    targets = allocate_cell_targets(np.array([25, 25, 50]), np.array([1, 4, 0]), 100)
+    assert targets.tolist() == [50, 50, 0]
+    with pytest.raises(ValueError, match="no population object"):
+        allocate_cell_targets(np.array([0, 5]), np.array([3, 0]), 10)
+    with pytest.raises(ValueError, match="n_target"):
+        allocate_cell_targets(np.array([1]), np.array([1]), -1)
+
+
+def test_draw_cell_members_meets_every_target_with_even_repeats():
+    cells = np.array([0, 0, 0, 1, 1, 2, 3, 3, 3, 3])
+    targets = np.array([7, 1, 0, 2])
+    picks = draw_cell_members(cells, targets, np.random.default_rng(0))
+    assert np.bincount(cells[picks], minlength=4).tolist() == [7, 1, 0, 2]
+    uses = np.bincount(picks, minlength=len(cells))
+    # cell 0 (3 objects, target 7): every object used, at most once more than any other
+    assert set(uses[:3]) == {2, 3} and uses[:3].sum() == 7
+    # cells 1 and 3 have more objects than their targets: no object repeats
+    assert uses[3:5].max() <= 1 and uses[6:].max() <= 1
+    with pytest.raises(ValueError, match="no pool objects"):
+        draw_cell_members(np.array([0]), np.array([0, 1]), np.random.default_rng(0))
+
+
+def test_som_features_fill_nondetections_and_difference_colours():
+    frame = pd.DataFrame({"r": [21.0, 40.0, np.nan], "i": [20.0, 20.5, np.inf]})
+    x = som_features(frame, ["i"], ["r", "i"], [26.0], [27.0, 26.0], 40.0)
+    assert x.dtype == np.float32
+    assert x[:, 0].tolist() == [20.0, 20.5, 26.0]  # i, inf -> 26
+    assert x[:, 1].tolist() == [1.0, 6.5, 1.0]  # r - i with 40 and NaN -> 27
+    nan_sentinel = som_features(frame, ["r"], ["r", "i"], [27.0], [27.0, 26.0], float("nan"))
+    assert nan_sentinel[:, 0].tolist() == [21.0, 40.0, 27.0]  # 40 is a magnitude here
 
 
 def _som_inputs(catalog):
@@ -307,116 +405,135 @@ def _som_inputs(catalog):
     return pool, population
 
 
-@needs_somoclu
-def test_som_resampler_trains_a_real_som(catalog):
-    """The genuine article: a 4x4 map, two epochs, one pass."""
-    DataStore.allow_overwrite = True
-    pool, population = _som_inputs(catalog)
-    stage = SOMResampler.make_stage(
-        name="som_real", som_size=[4, 4], n_epochs=2, n_repeat=1, n_population=50
-    )
-    out = stage(pool, population).data
-    assert isinstance(out, dict)
-    assert set(out) >= {"lsst_i_mag_gauss2", "lsst_r_mag_gauss2", "lsst_z_mag_gauss2"}
-    assert len(out["lsst_i_mag_gauss2"]) > 0
-    # the output is drawn from the pool, so the magnitudes must come from it
-    assert set(np.asarray(out["lsst_i_mag_gauss2"])) <= set(pool["lsst_i_mag_gauss2"])
-
-
-class _StubSOMStage:
-    """Stands in for SOMSpecSelector: selects the first half of the pool it is given."""
-
-    calls = []
-
-    def __init__(self, name, output, **config):
-        self.name = name
-        self.output = output
-        self.config = config
-
-    @classmethod
-    def make_stage(cls, name, output, **config):
-        return cls(name, output, **config)
-
-    def __call__(self, input_data, spec_data):
-        type(self).calls.append(
-            dict(name=self.name, n_pool=len(input_data), n_spec=len(spec_data),
-                 config=self.config)
-        )
-        selected = input_data.iloc[: len(input_data) // 2]
-        return types.SimpleNamespace(data=selected)
+def _cell_by_magnitude(self, train, samples):
+    """Stands in for the SOM: cell = whole i magnitude above 19, on a 4x4 map."""
+    return [np.clip(np.floor(s[:, 0]) - 19, 0, 15).astype(np.int64) for s in samples]
 
 
 @pytest.fixture(name="stub_som")
 def fixture_stub_som(monkeypatch):
     """Exercise SOMResampler.run() without somoclu, which is a heavy optional dependency."""
-    module = importlib.import_module("rail.creation.degraders.specz_som")
-    _StubSOMStage.calls = []
-    monkeypatch.setattr(module, "SOMSpecSelector", _StubSOMStage)
-    return _StubSOMStage
+    monkeypatch.setattr(SOMResampler, "_train_and_assign", _cell_by_magnitude)
 
 
-def test_som_resampler_stacks_every_pass(catalog, stub_som):
+def _cells_of(out):
+    return np.clip(np.floor(np.asarray(out["lsst_i_mag_gauss2"])) - 19, 0, 15).astype(int)
+
+
+def test_som_resampler_matches_the_population_occupancy(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    # a population skewed faint: every object fainter than 23 appears four times
+    faint = population[population["lsst_i_mag_gauss2"] > 23.0]
+    population = pd.concat([population] + [faint] * 3, ignore_index=True)
+    stage = SOMResampler.make_stage(
+        name="som_occ", som_size=[4, 4], n_target=2000, mag_range=[0.0, 99.0]
+    )
+    out = stage(pool, population).data
+    assert len(out["lsst_i_mag_gauss2"]) == 2000
+    want = allocate_cell_targets(
+        np.bincount(_cells_of(population), minlength=16),
+        np.bincount(_cells_of(pool), minlength=16),
+        2000,
+    )
+    assert np.bincount(_cells_of(out), minlength=16).tolist() == want.tolist()
+    assert np.array_equal(np.asarray(out["som_cell"]), _cells_of(out))
+    # drawn from the pool: every output object is a pool object
+    assert set(np.asarray(out["object_id"])) <= set(pool["object_id"])
+    cells = stage.get_data("cells")
+    assert cells["n_target"].sum() == 2000
+    assert cells["n_population"].sum() == len(population)
+    assert cells["n_pool"].sum() == len(pool)
+
+
+def test_som_resampler_drops_population_cells_the_pool_cannot_fill(catalog, stub_som):
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    extra = population.iloc[:30].copy()
+    extra["lsst_i_mag_gauss2"] = 26.5  # cell 7: no pool object there
+    population = pd.concat([population, extra], ignore_index=True)
+    stage = SOMResampler.make_stage(
+        name="som_cover", som_size=[4, 4], n_target=500, mag_range=[0.0, 99.0]
+    )
+    out = stage(pool, population).data
+    assert len(out["lsst_i_mag_gauss2"]) == 500
+    assert 7 not in set(_cells_of(out))
+    cells = stage.get_data("cells").set_index("cell")
+    assert cells.loc[7, "n_population"] == 30 and cells.loc[7, "n_target"] == 0
+
+
+def test_som_resampler_applies_the_magnitude_range_to_both_samples(catalog, stub_som):
     DataStore.allow_overwrite = True
     pool, population = _som_inputs(catalog)
     stage = SOMResampler.make_stage(
-        name="som_stub", som_size=[4, 4], n_epochs=2, n_repeat=3, n_population=40,
-        mag_range_out=[0.0, 99.0],
+        name="som_range", som_size=[4, 4], n_target=300, mag_range=[20.0, 22.0]
     )
     out = stage(pool, population).data
-    assert len(stub_som.calls) == 3, "one sub-stage per pass"
-    assert [c["n_spec"] for c in stub_som.calls] == [40, 40, 40]
-    # three passes, each returning half the pool, stacked
-    assert len(out["lsst_i_mag_gauss2"]) == 3 * (len(pool) // 2)
-    assert stub_som.calls[0]["config"]["n_epochs"] == 2
-    assert stub_som.calls[0]["config"]["som_size"] == [4, 4]
-
-
-def test_som_resampler_applies_the_output_magnitude_range(catalog, stub_som):
-    DataStore.allow_overwrite = True
-    pool, population = _som_inputs(catalog)
-    wide = SOMResampler.make_stage(
-        name="som_wide", n_repeat=1, n_population=40, mag_range_out=[0.0, 99.0]
-    )(pool, population).data
-    narrow = SOMResampler.make_stage(
-        name="som_narrow", n_repeat=1, n_population=40, mag_range_out=[19.0, 21.0]
-    )(pool, population).data
-    assert len(narrow["lsst_i_mag_gauss2"]) < len(wide["lsst_i_mag_gauss2"])
-    mags = np.asarray(narrow["lsst_i_mag_gauss2"])
-    assert ((mags > 19.0) & (mags < 21.0)).all()
-
-
-def test_som_resampler_cuts_the_pool_on_magnitude(catalog, stub_som):
-    DataStore.allow_overwrite = True
-    pool, population = _som_inputs(catalog)
-    SOMResampler.make_stage(
-        name="som_magcut", n_repeat=1, n_population=40, mag_cut_pool=21.0,
-        mag_range_out=[0.0, 99.0],
-    )(pool, population).data
-    n_expected = int((pool["lsst_i_mag_gauss2"] < 21.0).sum())
-    assert stub_som.calls[0]["n_pool"] == n_expected
+    mags = np.asarray(out["lsst_i_mag_gauss2"])
+    assert len(mags) == 300 and ((mags > 20.0) & (mags < 22.0)).all()
+    cells = stage.get_data("cells")
+    in_range = population["lsst_i_mag_gauss2"].between(20.0, 22.0, inclusive="neither")
+    assert cells["n_population"].sum() == int(in_range.sum())
 
 
 def test_som_resampler_is_reproducible(catalog, stub_som):
     DataStore.allow_overwrite = True
     pool, population = _som_inputs(catalog)
-    first = SOMResampler.make_stage(
-        name="som_r1", n_repeat=2, n_population=40, seed=5, mag_range_out=[0.0, 99.0]
-    )(pool, population).data
-    second = SOMResampler.make_stage(
-        name="som_r2", n_repeat=2, n_population=40, seed=5, mag_range_out=[0.0, 99.0]
-    )(pool, population).data
-    assert np.array_equal(
-        np.asarray(first["lsst_i_mag_gauss2"]), np.asarray(second["lsst_i_mag_gauss2"])
+    first, second = (
+        SOMResampler.make_stage(
+            name=f"som_r{k}", som_size=[4, 4], n_target=400, seed=5, mag_range=[0.0, 99.0]
+        )(pool, population).data
+        for k in (1, 2)
     )
+    assert np.array_equal(np.asarray(first["object_id"]), np.asarray(second["object_id"]))
 
 
-def test_som_resampler_reports_missing_feature_columns(catalog, stub_som):
+def test_som_resampler_rejects_bad_configuration(catalog, stub_som):
     DataStore.allow_overwrite = True
     pool, population = _som_inputs(catalog)
-    pool = pool.drop(columns=["lsst_r_mag_gauss2"])
-    stage = SOMResampler.make_stage(name="som_miss", n_repeat=1, n_population=40)
+    stage = SOMResampler.make_stage(name="som_miss", som_size=[4, 4])
     with pytest.raises(KeyError, match="lsst_r_mag_gauss2"):
+        stage(pool.drop(columns=["lsst_r_mag_gauss2"]), population)
+    stage = SOMResampler.make_stage(name="som_bad", som_size=[4, 4], som_train_on="both")
+    with pytest.raises(ValueError, match="som_train_on"):
         stage(pool, population)
+    stage = SOMResampler.make_stage(name="som_bad_init", som_size=[4, 4], som_init="kmeans")
+    with pytest.raises(ValueError, match="som_init"):
+        stage(pool, population)
+
+
+@needs_somoclu
+def test_train_som_random_init_is_seeded_and_radius_is_used():
+    data = np.random.default_rng(3).normal(size=(400, 3)).astype(np.float32)
+    first = train_som(data, [4, 4], 3, init="random", seed=11)
+    again = train_som(data, [4, 4], 3, init="random", seed=11)
+    other = train_som(data, [4, 4], 3, init="random", seed=12)
+    wide = train_som(data, [4, 4], 3, init="random", seed=11, radius_final=3.0)
+    assert first.shape == (16, 3)
+    assert np.allclose(first, again)
+    assert not np.allclose(first, other)
+    assert not np.allclose(first, wide)
+    with pytest.raises(ValueError, match="init"):
+        train_som(data, [4, 4], 1, init="kmeans")
+
+
+@needs_somoclu
+@pytest.mark.parametrize(
+    "train_on, init, radius",
+    [("population", "pca", 1.0), ("pool", "pca", 1.0), ("population", "random", 2.0)],
+)
+def test_som_resampler_trains_a_real_som(catalog, train_on, init, radius):
+    """The genuine article: a 4x4 map, two epochs."""
+    DataStore.allow_overwrite = True
+    pool, population = _som_inputs(catalog)
+    stage = SOMResampler.make_stage(
+        name=f"som_real_{train_on}_{init}", som_size=[4, 4], n_epochs=2, n_target=300,
+        som_train_on=train_on, som_init=init, som_radius_final=radius,
+    )
+    out = stage(pool, population).data
+    assert len(out["lsst_i_mag_gauss2"]) == 300
+    assert set(np.asarray(out["lsst_i_mag_gauss2"])) <= set(pool["lsst_i_mag_gauss2"])
+    assert stage.get_data("cells")["n_target"].sum() == 300
 
 
 # --------------------------------------------------------------------------------------- #
@@ -479,3 +596,141 @@ def test_pz_prepare_pipeline_rejects_an_unknown_key():
 
     with pytest.raises(KeyError, match="unknown catalog_config keys"):
         HscfyPzPreparePipeline(dict(not_a_real_key=1))
+
+
+# --------------------------------------------------------------------------------------- #
+# SOMZCellResampler
+# --------------------------------------------------------------------------------------- #
+
+def test_zcell_resampler_declares_its_handles():
+    """The truth sample comes in, the (cell, z bin) table goes out, on top of SOMResampler's."""
+    assert [tag for tag, _ in SOMZCellResampler.inputs] == ["input", "population", "truth"]
+    assert [tag for tag, _ in SOMZCellResampler.outputs] == ["output", "cells", "zcells"]
+
+
+def test_allocate_cell_targets_takes_real_weights():
+    targets = allocate_cell_targets(np.array([0.25, 0.5, 0.25, 0.1]), np.array([1, 1, 1, 0]), 8)
+    assert targets.tolist() == [2, 4, 2, 0]
+
+
+def test_redshift_bins_clip_to_the_end_bins():
+    edges = np.array([0.0, 0.5, 1.0, 2.0])
+    z = np.array([-0.1, 0.0, 0.49, 0.5, 1.99, 2.0, 9.0])
+    assert redshift_bins(z, edges).tolist() == [0, 0, 0, 1, 2, 2, 2]
+
+
+def test_zcell_fractions_shrink_toward_the_neighbourhood():
+    """A 3x1 map: cell 0 has truth [6, 4], cell 1 has [0, 2], cell 2 none."""
+    truth = np.array([[6.0, 4.0], [0.0, 2.0], [0.0, 0.0]])
+    pool = np.array([[1.0, 1.0], [1.0, 1.0], [3.0, 1.0]])
+    p, no_truth = zcell_fractions(truth, pool, [3, 1], shrink=5.0)
+    # cell 0: own [6, 4] + 5 x its neighbourhood (cells 0, 1: [6, 6] -> [.5, .5]), / (10 + 5)
+    assert np.allclose(p[0], (np.array([6, 4]) + 5 * np.array([0.5, 0.5])) / 15)
+    # cell 1: neighbourhood is all three cells, [6, 6]
+    assert np.allclose(p[1], (np.array([0, 2]) + 5 * np.array([0.5, 0.5])) / 7)
+    # cell 2 borrows entirely from cells 1-2, which hold [0, 2]
+    assert np.allclose(p[2], [0.0, 1.0]) and not no_truth.any()
+    # no shrinkage: a cell is its own histogram
+    p0, _ = zcell_fractions(truth, pool, [3, 1], shrink=0.0)
+    assert np.allclose(p0[0], [0.6, 0.4]) and np.allclose(p0[1], [0.0, 1.0])
+    # a cell with no truth anywhere around it keeps the pool's own fractions, and is flagged
+    lonely = np.array([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [5.0, 5.0]])
+    p_far, flagged = zcell_fractions(lonely, np.ones((4, 2)) * [[3, 1]], [4, 1], shrink=5.0)
+    assert flagged.tolist() == [True, True, False, False]
+    assert np.allclose(p_far[0], [0.75, 0.25])
+
+
+def _zcell_inputs():
+    """Pool, population and truth on the stub SOM (cell = whole i magnitude above 19).
+
+    In cells 1 and 2 (20 < i < 22) half of the pool sits at z = 0.2 and half at z = 1.0;
+    the truth puts every galaxy of those cells at z ~ 0.2.
+    """
+    rng = np.random.default_rng(11)
+    n = 400
+    mag = rng.uniform(20.0, 22.0, n)
+    pool = pd.DataFrame(
+        {
+            "object_id": np.arange(n),
+            "lsst_i_mag_gauss2": mag,
+            "lsst_r_mag_gauss2": mag + 0.3,
+            "lsst_z_mag_gauss2": mag - 0.2,
+            "redshift": np.where(np.arange(n) % 2 == 0, 0.2, 1.0),
+        }
+    )
+    population = pool.drop(columns=["redshift", "object_id"]).sample(
+        frac=1.0, random_state=1
+    ).reset_index(drop=True)
+    truth = population.iloc[:150].copy()
+    truth["z"] = rng.uniform(0.1, 0.3, len(truth))
+    return pool, population, truth
+
+
+def test_zcell_resampler_follows_the_truth_inside_each_cell(stub_som):
+    DataStore.allow_overwrite = True
+    pool, population, truth = _zcell_inputs()
+    stage = SOMZCellResampler.make_stage(
+        name="zcell_follow", som_size=[4, 4], n_target=1000, mag_range=[0.0, 99.0],
+        z_edges=[0.0, 0.5, 2.0], z_shrink=5.0,
+    )
+    out = stage(pool, population, truth).data
+    z = np.asarray(out["redshift"])
+    assert len(z) == 1000
+    # the plain SOM draw would give half z = 1.0; the truth says none
+    assert (z < 0.5).all()
+    assert np.asarray(out["som_zbin"]).tolist() == [0] * 1000
+    # the colour--magnitude occupancy is untouched: per cell, still the population share
+    want = allocate_cell_targets(
+        np.bincount(_cells_of(population), minlength=16),
+        np.bincount(_cells_of(pool), minlength=16),
+        1000,
+    )
+    assert np.bincount(_cells_of(out), minlength=16).tolist() == want.tolist()
+    zcells = stage.get_data("zcells")
+    assert len(zcells) == 16 * 2 and zcells["n_target"].sum() == 1000
+    assert np.isclose(zcells["population_share"].sum(), 1.0)
+    assert zcells["n_truth"].sum() == len(truth)
+    cells = stage.get_data("cells")
+    assert cells["n_target"].tolist() == want.tolist()
+
+
+def test_zcell_resampler_renormalises_slots_the_pool_cannot_fill(stub_som):
+    DataStore.allow_overwrite = True
+    pool, population, truth = _zcell_inputs()
+    pool = pool[pool["redshift"] < 0.5].reset_index(drop=True)  # no pool object at z > 0.5
+    truth.loc[truth["lsst_i_mag_gauss2"] < 21.0, "z"] = 1.5  # cell 1 is all high-z truth
+    stage = SOMZCellResampler.make_stage(
+        name="zcell_lost", som_size=[4, 4], n_target=500, mag_range=[0.0, 99.0],
+        z_edges=[0.0, 0.5, 2.0], z_shrink=0.0,
+    )
+    out = stage(pool, population, truth).data
+    assert len(out["redshift"]) == 500
+    zcells = stage.get_data("zcells").set_index(["cell", "z_bin"])
+    assert zcells.loc[(1, 1), "n_pool"] == 0 and zcells.loc[(1, 1), "n_target"] == 0
+    # cell 1's whole share was in the unfillable slot, so cell 2 takes the full target
+    assert zcells.loc[(2, 0), "n_target"] == 500
+
+
+def test_zcell_resampler_rejects_bad_configuration(stub_som):
+    DataStore.allow_overwrite = True
+    pool, population, truth = _zcell_inputs()
+    stage = SOMZCellResampler.make_stage(name="zcell_edges", som_size=[4, 4], z_edges=[1.0, 0.5])
+    with pytest.raises(ValueError, match="z_edges"):
+        stage(pool, population, truth)
+    stage = SOMZCellResampler.make_stage(name="zcell_zcol", som_size=[4, 4])
+    with pytest.raises(KeyError, match="truth_redshift_col"):
+        stage(pool, population, truth.drop(columns=["z"]))
+    stage = SOMZCellResampler.make_stage(name="zcell_pcol", som_size=[4, 4])
+    with pytest.raises(KeyError, match="redshift_col"):
+        stage(pool.drop(columns=["redshift"]), population, truth)
+
+
+def test_pz_prepare_pipeline_swaps_in_the_zcell_stage():
+    from rail.pipelines.degradation.hscfy_pz_prepare import HscfyPzPreparePipeline
+
+    plain = HscfyPzPreparePipeline()
+    zcell = HscfyPzPreparePipeline(dict(zcell=True, z_edges=[0.0, 1.0, 7.0]))
+    assert type(plain.som_resample_test) is SOMResampler
+    assert type(zcell.som_resample_test) is SOMZCellResampler
+    assert zcell.som_resample_test.config.z_edges == [0.0, 1.0, 7.0]
+    assert zcell.som_resample_test.config.redshift_col == "redshift"

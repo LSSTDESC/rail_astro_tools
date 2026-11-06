@@ -874,8 +874,8 @@ class SOMZCellResampler(SOMResampler):
 
     The truth sample fixes that.  It is a sample selected like the population *with complete
     redshifts* -- for DP2, the deep-field shear objects inside COSMOS2020, given wide-field
-    noise, put through the population cuts and matched to COSMOS2020
-    (``DeepFieldRedshiftSampler``).  Placed on the same SOM it gives p(z | cell)
+    noise, put through the population cuts and matched to COSMOS2020.  Placed on the same SOM
+    it gives p(z | cell)
     (:func:`zcell_fractions`), and each cell's target ``n_target x f_pop(cell)`` is split into
     ``n_target x f_pop(cell) x p(z bin | cell)``.  Every (cell, z bin) slot is then filled from
     the pool objects in it, all of them before any repeats, exactly as cells are in

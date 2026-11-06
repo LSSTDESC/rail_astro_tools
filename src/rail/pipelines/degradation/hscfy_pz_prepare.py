@@ -20,8 +20,8 @@ flattens the magnitude--redshift distribution; the testing branch reshapes the p
 like the shear catalog it will be used to evaluate.
 
 ``zcell=True`` swaps the test stage for ``SOMZCellResampler``, which also splits every SOM
-cell's target over wide redshift bins by a redshift-complete ``truth`` sample (e.g. the output
-of ``DeepFieldRedshiftPipeline``), and adds ``truth`` to the pipeline inputs.
+cell's target over wide redshift bins by a redshift-complete ``truth`` sample (e.g. deep-field
+shear objects matched to a deep photo-z catalog), and adds ``truth`` to the pipeline inputs.
 
 ``deredden`` (``{input tag: {magnitude column: A_b / E(B-V)}}``) puts a ``Dereddener`` in
 front of each named input -- ``input``, ``population``, ``truth`` -- so the split, the SOM and

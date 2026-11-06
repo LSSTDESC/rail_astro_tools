@@ -52,6 +52,9 @@ write_to = "src/rail/astro_tools/_version.py"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts   = ["--cov=rail", "--cov-report=html"]
+markers = [
+    "slow: needs a large download or minutes of runtime; deselect with -m 'not slow'",
+]
 
 [tool.pylint]
 disable = [

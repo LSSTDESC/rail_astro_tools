@@ -68,27 +68,6 @@ from rail.utils.testing_utils import build_and_read_pipeline
                 }
             },
         ),
-        ("rail.pipelines.degradation.deep_field_redshift_pipeline.DeepFieldRedshiftPipeline", {}),
-        (
-            "rail.pipelines.degradation.deep_field_redshift_pipeline.DeepFieldRedshiftPipeline",
-            {
-                "catalog_config": {
-                    "shear_catalog": "deep_shear_catalog.hdf5",
-                    "shear_group": "shear",
-                    "cuts": ["mag_i < 24", "s2n > 10", "esq < 0.16", "n_mask_base < 0.035"],
-                    "derived_cols": {"esq": "e1_raw**2 + e2_raw**2"},
-                    "skip_missing_cuts": True,
-                    "noise_bands": ["r", "i", "z"],
-                    "sn_col": "s2n",
-                    "nondetect_val": 40.0,
-                }
-            },
-        ),
-        ("rail.pipelines.degradation.sim_pz_prepare.SimPzPreparePipeline", {}),
-        (
-            "rail.pipelines.degradation.sim_pz_prepare.SimPzPreparePipeline",
-            {"catalog_config": {"n_holdout": 1000, "match_redshift": True, "target_scale": 2}},
-        ),
         ("rail.pipelines.degradation.crossmatch_pipeline.CrossMatchPipeline", {}),
         (
             "rail.pipelines.degradation.crossmatch_pipeline.CrossMatchPipeline",

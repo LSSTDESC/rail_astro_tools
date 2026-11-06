@@ -484,6 +484,14 @@ class DustMapBase(RailStage):
         dustmap_dir=Param(str, required=True, msg="Directory with dustmaps"),
         copy_cols=Param(list, default=[], msg="Additional columns to copy"),
         copy_all_cols=Param(bool, default=False, msg="Copy all the columns"),
+        nondetect_val=Param(
+            float,
+            default=np.nan,
+            msg="Magnitude value marking a non-detection; left unchanged (NaN always is)",
+        ),
+        ebv_name=Param(
+            str, default="", msg="If set, also write each row's E(B-V) to this column"
+        ),
     )
 
     inputs = [("input", PqHandle)]
@@ -512,6 +520,14 @@ class DustMapBase(RailStage):
 
     def run(self):
         data = self.get_data("input", allow_missing=True)
+        if not isinstance(data, pd.DataFrame):
+            # ceci reads a parquet input as a pyarrow Table, which supports neither
+            # iterating over column names nor arithmetic
+            data = tables_io.convert(data, tables_io.types.PD_DATAFRAME)
+        if self.config.ebv_name and self.config.ebv_name in data.columns:
+            raise ValueError(
+                f"ebv_name {self.config.ebv_name!r} is already a column of the input"
+            )
         self.fetch_map()
         out_data = {}
         coords = SkyCoord(
@@ -534,8 +550,13 @@ class DustMapBase(RailStage):
         band_mag_name_list = []
         for band_mag_name, a_env_value in self.config.band_a_env.items():
             mag_vals = data[band_mag_name]
-            out_data[band_mag_name] = self._calc_values(mag_vals, ebvvec, a_env_value)
+            values = self._calc_values(mag_vals, ebvvec, a_env_value)
+            if np.isfinite(self.config.nondetect_val):
+                values = values.where(mag_vals != self.config.nondetect_val, mag_vals)
+            out_data[band_mag_name] = values
             band_mag_name_list.append(band_mag_name)
+        if self.config.ebv_name:
+            out_data[self.config.ebv_name] = ebvvec
 
         # check if copy_all_cols set to true:
         if self.config.copy_all_cols is False:  # pragma: no cover

@@ -1,10 +1,13 @@
 """Unit tests for the pz_prepare curation stages and the table helpers they share."""
 
+import pickle
+
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
 import yaml
+from astropy.io import fits
 
 from rail.core.data import DataStore
 from rail.creation.degraders._frame_utils import (
@@ -14,6 +17,10 @@ from rail.creation.degraders._frame_utils import (
     to_numpy_frame,
 )
 from rail.creation.degraders.pz_prepare import (
+    COSMOS2020_REF,
+    COSMOS_WEB_REF,
+    PAUS_COSMOS_REF,
+    MergeFullPZStage,
     ReferenceHoldoutSplitter,
     MagRedshiftDownsampler,
     PreTrainTestSplitter,
@@ -22,6 +29,7 @@ from rail.creation.degraders.pz_prepare import (
     allocate_cell_targets,
     draw_cell_members,
     redshift_bins,
+    rebin_pz,
     som_features,
     train_som,
     zcell_fractions,
@@ -734,3 +742,289 @@ def test_pz_prepare_pipeline_swaps_in_the_zcell_stage():
     assert type(zcell.som_resample_test) is SOMZCellResampler
     assert zcell.som_resample_test.config.z_edges == [0.0, 1.0, 7.0]
     assert zcell.som_resample_test.config.redshift_col == "redshift"
+
+
+# --------------------------------------------------------------------------------------- #
+# MergeFullPZStage
+# --------------------------------------------------------------------------------------- #
+
+# The real inputs are a 258 MB parquet, a 28 GB pickle and two multi-GB FITS files, so these
+# fixtures rebuild each format in miniature: same layout, same normalization conventions, a
+# handful of objects.  Each synthetic p(z) is a single spike at a known redshift, which lets
+# a test assert that a row was matched to the *right* object rather than merely to something.
+
+PAUS_IDS = [11, 12, 13]
+PAUS_PEAKS = [0.20, 0.50, 0.90]
+WEB_IDS = [0, 1, 2, 3]
+WEB_PEAKS = [0.30, 1.10, 8.00, 0.70]     # 8.00 is beyond zmax, to exercise the pile-up
+C2020_IDS = [1, 2, 3]
+C2020_PEAKS = [0.40, 1.60, 0.60]
+WEB_POSITIONS = [(150.00, 2.00), (150.01, 2.00), (150.02, 2.00), (150.03, 2.00)]
+
+
+def _spike(grid, peak, total):
+    """A p(z) holding all of ``total`` in the grid bin nearest ``peak``."""
+    pz = np.zeros(len(grid))
+    pz[np.abs(grid - peak).argmin()] = total
+    return pz
+
+
+@pytest.fixture
+def external_pz_files(tmp_path):
+    """Miniature stand-ins for the four external p(z) files, in their real on-disk formats."""
+    # PAUS+COSMOS: Z<z> columns on a deliberately non-uniform grid, rows summing to 1.
+    paus_grid = np.concatenate([np.arange(0, 0.1, 0.001), np.arange(0.1, 1.0, 0.01)])
+    paus = pd.DataFrame(
+        np.array([_spike(paus_grid, peak, 1.0) for peak in PAUS_PEAKS]),
+        columns=[f"Z{z:.3f}" for z in paus_grid],
+    )
+    paus["ref_id"] = PAUS_IDS
+    paus_file = tmp_path / "paus_cosmos.parquet"
+    paus.to_parquet(paus_file)
+
+    # COSMOSWeb: {int64 id: (3, nz)} of grid / p(z) summing to 100 / AGN p(z).
+    web_grid = np.arange(0, 10.001, 0.01)
+    web = {
+        np.int64(i): np.vstack([web_grid, _spike(web_grid, peak, 100.0), np.zeros(len(web_grid))])
+        for i, peak in zip(WEB_IDS, WEB_PEAKS)
+    }
+    web_file = tmp_path / "cosmos_web.pkl"
+    with open(web_file, "wb") as stream:
+        pickle.dump(web, stream, protocol=4)
+
+    # COSMOSWeb photometry: id / ra / dec, for the positional fallback.
+    photometry_file = tmp_path / "cosmos_web_photometry.fits"
+    fits.HDUList(
+        [
+            fits.PrimaryHDU(),
+            fits.BinTableHDU.from_columns(
+                [
+                    fits.Column(name="id", format="K", array=np.array(WEB_IDS)),
+                    fits.Column(name="ra", format="D", array=np.array([p[0] for p in WEB_POSITIONS])),
+                    fits.Column(name="dec", format="D", array=np.array([p[1] for p in WEB_POSITIONS])),
+                ]
+            ),
+        ]
+    ).writeto(photometry_file)
+
+    # COSMOS2020: an image whose row 0 is the grid and column 0 the id == row index.
+    c2020_grid = np.arange(0, 3.001, 0.01)
+    image = np.zeros((max(C2020_IDS) + 1, len(c2020_grid) + 1), dtype="float32")
+    image[0, 0] = np.nan
+    image[0, 1:] = c2020_grid
+    for i, peak in zip(C2020_IDS, C2020_PEAKS):
+        image[i, 0] = i
+        image[i, 1:] = _spike(c2020_grid, peak, 100.0)
+    c2020_file = tmp_path / "cosmos2020_pz.fits"
+    fits.PrimaryHDU(image).writeto(c2020_file)
+
+    return dict(
+        paus_cosmos_file=str(paus_file),
+        cosmos_web_file=str(web_file),
+        cosmos_web_photometry_file=str(photometry_file),
+        cosmos2020_file=str(c2020_file),
+    )
+
+
+@pytest.fixture
+def merge_catalog():
+    """A cross-match-shaped catalog covering every route a row can take to a p(z).
+
+    ``orig_id`` is a string here, as it is in the real cross-match, and row 'noise' carries a
+    non-numeric one so the coercion path is exercised.
+    """
+    return pd.DataFrame(
+        {
+            "tag": ["paus", "web", "c2020", "position", "nothing", "noise"],
+            "orig_id": ["12", "1", "2", "999", "7", "0058-01036"],
+            "ref_catalog": [
+                PAUS_COSMOS_REF,
+                COSMOS_WEB_REF,
+                COSMOS2020_REF,
+                "314_desi_dr1_lite",
+                "314_desi_dr1_lite",
+                "183_primus_dr1",
+            ],
+            # only the 'position' row sits on a COSMOSWeb object
+            "ra": [150.5, 150.5, 150.5, 150.02, 151.9, 151.9],
+            "dec": [2.5, 2.5, 2.5, 2.00, 2.5, 2.5],
+        }
+    )
+
+
+def _peak_redshifts(stage, out):
+    """The redshift each output row's p(z) peaks at."""
+    pz = np.stack(out["pz"].to_numpy())
+    return stage.zgrid[pz.argmax(axis=1)]
+
+
+def test_merge_full_pz_ids_only(external_pz_files, merge_catalog):
+    """With no fallback, only rows whose reference catalog carries a usable id survive."""
+    stage = MergeFullPZStage.make_stage(name="ids_only", fallback=[], **external_pz_files)
+    out = stage(merge_catalog).data
+
+    assert list(out["tag"]) == ["paus", "web"]
+    assert list(out["pz_source"]) == ["paus_cosmos", "cosmos_web"]
+    # matched to the right objects: PAUS id 12 peaks at 0.50, COSMOSWeb id 1 at 1.10
+    assert _peak_redshifts(stage, out) == pytest.approx([0.50, 1.10], abs=0.011)
+
+
+def test_merge_full_pz_normalization_and_dtype(external_pz_files, merge_catalog):
+    """p(z) come back as normalized float32 on the configured grid."""
+    stage = MergeFullPZStage.make_stage(name="norm", **external_pz_files)
+    out = stage(merge_catalog).data
+    pz = np.stack(out["pz"].to_numpy())
+
+    assert pz.dtype == np.float32
+    assert pz.shape[1] == len(stage.zgrid) == 400
+    assert pz.sum(axis=1) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_merge_full_pz_cosmos2020_fallback(external_pz_files, merge_catalog):
+    """The COSMOS2020 fallback claims rows by id, and only rows still without a p(z)."""
+    stage = MergeFullPZStage.make_stage(
+        name="c2020", fallback=["cosmos2020"], **external_pz_files
+    )
+    out = stage(merge_catalog).data
+
+    assert list(out["tag"]) == ["paus", "web", "c2020"]
+    assert out.loc[out.tag == "c2020", "pz_source"].item() == "cosmos2020"
+    # COSMOS2020 id 2 peaks at 1.60
+    assert _peak_redshifts(stage, out)[2] == pytest.approx(1.60, abs=0.011)
+
+
+def test_merge_full_pz_position_fallback(external_pz_files, merge_catalog):
+    """The positional fallback reaches a row whose reference id belongs to another survey."""
+    stage = MergeFullPZStage.make_stage(
+        name="pos", fallback=["position"], **external_pz_files
+    )
+    out = stage(merge_catalog).data
+
+    assert list(out["tag"]) == ["paus", "web", "position"]
+    assert out.loc[out.tag == "position", "pz_source"].item() == "cosmos_web_position"
+    # it sits on COSMOSWeb id 2, whose p(z) peaks beyond zmax and so piles up in the last bin
+    assert _peak_redshifts(stage, out)[2] == pytest.approx(stage.zgrid[-1])
+
+
+def test_merge_full_pz_position_radius_excludes_distant_rows(external_pz_files, merge_catalog):
+    """Shrinking the radius below the offset drops the positional match."""
+    far = merge_catalog.copy()
+    far.loc[far.tag == "position", "dec"] = 2.0 + 2.0 / 3600.0   # 2 arcsec away
+    stage = MergeFullPZStage.make_stage(
+        name="radius", fallback=["position"], match_radius_arcsec=0.75, **external_pz_files
+    )
+    assert "position" not in set(stage(far).data["tag"])
+
+
+def test_merge_full_pz_chained_fallbacks(external_pz_files, merge_catalog):
+    """Chaining reaches the union of both fallbacks, and keeps the same rows either way.
+
+    Only the provenance of rows both fallbacks could supply depends on the order, which is
+    also the check that neither step destroys the ids the other matches on.
+    """
+    both = merge_catalog.copy()
+    # this row is reachable either way: a COSMOS2020 id, sitting on a COSMOSWeb object
+    both.loc[len(both)] = {
+        "tag": "either", "orig_id": "3", "ref_catalog": COSMOS2020_REF,
+        "ra": 150.03, "dec": 2.00,
+    }
+
+    forward = MergeFullPZStage.make_stage(
+        name="fwd", fallback=["position", "cosmos2020"], **external_pz_files
+    )(both).data
+    reverse = MergeFullPZStage.make_stage(
+        name="rev", fallback=["cosmos2020", "position"], **external_pz_files
+    )(both).data
+
+    assert set(forward["tag"]) == set(reverse["tag"])
+    assert set(forward["tag"]) == {"paus", "web", "c2020", "position", "either"}
+    assert forward.loc[forward.tag == "either", "pz_source"].item() == "cosmos_web_position"
+    assert reverse.loc[reverse.tag == "either", "pz_source"].item() == "cosmos2020"
+    # the rows only one fallback can reach keep their source in both orders
+    for table in (forward, reverse):
+        assert table.loc[table.tag == "position", "pz_source"].item() == "cosmos_web_position"
+        assert table.loc[table.tag == "c2020", "pz_source"].item() == "cosmos2020"
+
+
+def test_merge_full_pz_unnested_matches_nested(external_pz_files, merge_catalog):
+    """The one-column-per-bin format holds the same numbers under the documented names."""
+    nested = MergeFullPZStage.make_stage(name="nest", **external_pz_files)(merge_catalog).data
+    stage = MergeFullPZStage.make_stage(name="flat", nested=False, **external_pz_files)
+    flat = stage(merge_catalog).data
+
+    assert stage.column_names()[:2] == ["Z0_000", "Z0_010"]
+    assert stage.column_names()[-1] == "Z3_990"
+    assert [c for c in flat.columns if c.startswith("Z")] == stage.column_names()
+    assert flat[stage.column_names()].to_numpy() == pytest.approx(
+        np.stack(nested["pz"].to_numpy())
+    )
+
+
+def test_merge_full_pz_accepts_arrow_table(external_pz_files, merge_catalog):
+    """A PqHandle hands back a pyarrow Table under ceci, which the stage must absorb."""
+    stage = MergeFullPZStage.make_stage(name="arrow", fallback=[], **external_pz_files)
+    out = stage(pa.Table.from_pandas(merge_catalog, preserve_index=False)).data
+    assert isinstance(out, pd.DataFrame)
+    assert list(out["pz_source"]) == ["paus_cosmos", "cosmos_web"]
+
+
+def test_merge_full_pz_custom_grid(external_pz_files, merge_catalog):
+    """zmin/zmax/dz drive both the grid and the unnested column names."""
+    stage = MergeFullPZStage.make_stage(
+        name="grid", zmin=0.0, zmax=1.0, dz=0.1, nested=False, fallback=[], **external_pz_files
+    )
+    out = stage(merge_catalog).data
+    assert stage.column_names() == [f"Z{0.1 * k:.3f}".replace(".", "_") for k in range(11)]
+    assert out[stage.column_names()].to_numpy().sum(axis=1) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_merge_full_pz_requires_id_and_ref_columns(external_pz_files, merge_catalog):
+    """A missing id or reference-catalog column is an error, not a silently empty result."""
+    stage = MergeFullPZStage.make_stage(name="missing", **external_pz_files)
+    with pytest.raises(KeyError, match="ref_catalog"):
+        stage(merge_catalog.drop(columns=["ref_catalog"]))
+
+
+def test_merge_full_pz_rejects_unknown_fallback(external_pz_files, merge_catalog):
+    """An unrecognized fallback step is rejected rather than ignored."""
+    stage = MergeFullPZStage.make_stage(name="bad", fallback=["nope"], **external_pz_files)
+    with pytest.raises(ValueError, match="unknown fallback step"):
+        stage(merge_catalog)
+
+
+def test_merge_full_pz_reports_missing_cosmos_web_id(external_pz_files, merge_catalog):
+    """An id the COSMOSWeb pickle does not hold is reported, not silently dropped."""
+    absent = merge_catalog.copy()
+    absent.loc[absent.tag == "web", "orig_id"] = "4242"
+    stage = MergeFullPZStage.make_stage(name="absent", fallback=[], **external_pz_files)
+    with pytest.raises(KeyError, match="4242"):
+        stage(absent)
+
+
+def test_rebin_pz_conserves_mass_and_piles_up_tails():
+    """Mass is conserved, out-of-range mass lands in the end bins, empty rows stay empty."""
+    z_out = np.arange(0.0, 3.995, 0.01)
+    z_in = np.arange(0.0, 15.001, 0.01)
+
+    pz = np.zeros((4, len(z_in)))
+    pz[0, 50] = 1.0                      # a delta at z = 0.50
+    pz[1, 1000] = 1.0                    # a delta at z = 10.0, beyond z_out
+    pz[2, 500] = pz[2, 1400] = 0.5       # both beyond z_out
+                                         # row 3 is left empty
+    rebinned = rebin_pz(z_in, pz, z_out)
+
+    assert rebinned[:3].sum(axis=1) == pytest.approx(1.0)
+    assert z_out[rebinned[0].argmax()] == pytest.approx(0.50)
+    assert rebinned[1][-1] == pytest.approx(1.0)
+    assert rebinned[2][-1] == pytest.approx(1.0)
+    assert rebinned[3].sum() == 0.0
+
+
+def test_rebin_pz_handles_a_non_uniform_input_grid():
+    """The PAUS grid changes spacing twice, which a naive reshape would silently mangle."""
+    z_out = np.arange(0.0, 3.995, 0.01)
+    z_in = np.concatenate([np.arange(0, 1, 0.001), np.arange(1, 2, 0.002), np.arange(2, 3, 0.01)])
+    pz = np.random.default_rng(0).random((5, len(z_in)))
+    pz /= pz.sum(axis=1, keepdims=True)
+
+    assert rebin_pz(z_in, pz, z_out).sum(axis=1) == pytest.approx(1.0)

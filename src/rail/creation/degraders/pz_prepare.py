@@ -26,6 +26,12 @@ This is the HSC-FY preparation chain, generalised.  Three stages, and a variant 
     targeted spectroscopy, whose redshifts inside a colour cell are not those of the
     population.
 
+``MergeFullPZStage``
+    Upstream of the chain above, and independent of it.  Attach the *full* p(z) of an
+    external COSMOS catalog to a cross-matched shear x reference-redshift catalog, matching
+    on catalog ids, so the result can be used to calibrate a photometric redshift rather than
+    only to train one.
+
 Every survey-specific quantity -- column names, magnitude limits, per-survey caps, SOM
 features -- is a configuration parameter.  The defaults are the ones that work for the Rubin
 DP2 anacal shear catalog, whose photometry is ``lsst_{r,i,z}_mag_gauss2`` (riz only, already
@@ -35,10 +41,12 @@ Reference: the HSC-Y3 photo-z analysis, sections "Test Set Curation" and "Traini
 Curation"; the 2-D downsampling follows Zhou et al. (2021), section 3.3.
 """
 
+import pickletools
 import time
 
 import numpy as np
 import pandas as pd
+from astropy.io import fits
 from ceci.config import StageParameter as Param
 
 from rail.core.data import Hdf5Handle, PqHandle, TableLike
@@ -1019,3 +1027,252 @@ class SOMZCellResampler(SOMResampler):
         )
         units = cells["pool"] * n_bins + pool_bin
         return units, targets, {"som_zbin": pool_bin}, {"zcells": zcells}
+
+
+# --- MergeFullPZStage -------------------------------------------------------------------
+#
+# ``ref_catalog`` values whose ``orig_id`` is an id into each external p(z) catalog.  The
+# cross-match stores one reference per object, and ``orig_id`` is only meaningful in the
+# catalog ``ref_catalog`` names -- the same number is a different object elsewhere -- so every
+# id match below is scoped by it.
+PAUS_COSMOS_REF = "paus_cosmos_photoz_v0.4"
+COSMOS_WEB_REF = "cosmos_web_dr1.1__lephare_extension"
+COSMOS2020_REF = "269_cosmos2020_classic_lite"
+
+
+def rebin_pz(z_in: np.ndarray, pz_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+    """Move the probability mass in ``pz_in`` onto the uniform grid ``z_out``.
+
+    Mass beyond either end of ``z_out`` piles up in its end bins, so a p(z) defined out to
+    z=15 keeps its total when rebinned onto a grid ending at 3.99 rather than quietly losing
+    the tail.  Rows come back normalized to unit total, or all zero if the input row held no
+    probability at all.
+
+    This accumulates mass per bin rather than interpolating a density, which is what the
+    inputs are: every supported catalog stores probability *mass* per grid point, on grids
+    that are not all uniform.  It is therefore exact whenever ``z_out`` is no finer than the
+    input grid, which is the case for the default 0.01 spacing.
+    """
+    bin_of = np.rint((z_in - z_out[0]) / (z_out[1] - z_out[0]))
+    rebin = np.zeros((len(z_in), len(z_out)))
+    rebin[np.arange(len(z_in)), np.clip(bin_of, 0, len(z_out) - 1).astype(int)] = 1.0
+    pz = pz_in @ rebin
+    total = pz.sum(axis=1, keepdims=True)
+    return np.divide(pz, total, out=np.zeros_like(pz), where=total > 0)
+
+
+def paus_cosmos_pz(path: str, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(z, p(z))`` for ``ids``, from the PAUS+COSMOS parquet file.
+
+    Its p(z) live in columns named ``Z<z>`` on a grid that is *not* uniform -- 0.001 spacing
+    to z=1, 0.002 to z=2, then 0.01 -- which is why the grid is read back off the column
+    names rather than assumed.
+    """
+    pz = pd.read_parquet(path).set_index("ref_id")
+    return np.array([float(column[1:]) for column in pz.columns]), pz.loc[ids].to_numpy()
+
+
+def cosmos_web_pz(path: str, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(z, p(z))`` for ``ids``, from the COSMOSWeb (COSMOS2025) p(z) pickle.
+
+    That file is a ~28 GB ``{id: (3, nz) array}`` dict -- redshift grid, p(z), and a second
+    (AGN) PDF -- so unpickling it whole would cost about 30 GB of memory to reach the few
+    tens of thousands of entries a cross-match actually needs.  Instead we walk its opcodes
+    and decode only the buffers asked for: each entry pickles as its 8-byte int64 key
+    followed by the array's raw bytes, which streams at a couple of GB/s.
+
+    The p(z) row is normalized to 100 in the file; ``rebin_pz`` renormalizes it.
+    """
+    wanted, found, key = set(ids.tolist()), {}, None
+    with open(path, "rb") as stream:
+        for opcode, argument, _ in pickletools.genops(stream):
+            if opcode.name == "SHORT_BINBYTES" and len(argument) == 8:
+                key = int(np.frombuffer(argument, "<i8")[0])
+            elif opcode.name == "BINBYTES" and key in wanted:
+                entry = np.frombuffer(argument, "<f8").reshape(3, -1)
+                z, found[key] = entry[0], np.array(entry[1])
+    missing = wanted.difference(found)
+    if missing:
+        raise KeyError(f"{len(missing)} ids absent from {path}, e.g. {sorted(missing)[:5]}")
+    return z, np.array([found[i] for i in ids])
+
+
+def cosmos2020_pz(path: str, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(z, p(z))`` for ``ids``, from a COSMOS2020 LePhare p(z) image.
+
+    Row 0 of that image is the redshift grid and column 0 the object id, which equals the row
+    index, so the ids index the memory-mapped image directly and only the rows asked for are
+    read off disk.
+    """
+    image = fits.open(path, memmap=True)[0].data
+    return image[0, 1:].astype(float), np.array(image[ids, 1:], dtype=float)
+
+
+def cosmos_web_position_match(
+    ra: np.ndarray, dec: np.ndarray, path: str, radius_arcsec: float
+) -> np.ndarray:
+    """COSMOSWeb ids nearest the given positions, or ``-1`` beyond ``radius_arcsec``.
+
+    This is the only place the stage matches on sky position rather than on an id, and it
+    exists only to reach objects that lie inside the COSMOSWeb mosaic but whose cross-match
+    reference id belongs to some other survey.  Deleting it and the ``"position"`` branch of
+    ``MergeFullPZStage.run`` retires positional matching entirely.
+    """
+    from astropy.coordinates import SkyCoord
+
+    cosmos_web = fits.open(path, memmap=True)[1].data
+    nearest, separation, _ = SkyCoord(ra, dec, unit="deg").match_to_catalog_sky(
+        SkyCoord(cosmos_web["ra"], cosmos_web["dec"], unit="deg")
+    )
+    return np.where(separation.arcsec < radius_arcsec, cosmos_web["id"][nearest], -1)
+
+
+class MergeFullPZStage(RailStage):
+    """Attach full p(z) to a cross-matched shear x reference-redshift catalog.
+
+    Every row's ``orig_id`` is looked up in the catalog its ``ref_catalog`` names:
+    PAUS+COSMOS where available, else COSMOSWeb (COSMOS2025).  Rows neither covers are then
+    offered to each step of ``fallback`` in turn, each step claiming only rows still without
+    a p(z): ``"position"`` matches COSMOSWeb on the sky, and ``"cosmos2020"`` matches
+    COSMOS2020 ids.
+
+    The two fallbacks reach substantially different objects -- the first those inside the
+    COSMOSWeb mosaic whose reference id is some other survey's, the second those in the wider
+    COSMOS field but outside the mosaic -- so the default runs both, in that order, which
+    gives rows both can supply the deeper COSMOSWeb p(z).  Pass ``[]`` to match on ids alone.
+
+    Rows that end up without a p(z) are dropped, so the output is *not* row-aligned with the
+    input.  Only id, position and ``ref_catalog`` columns are read and no shape column is
+    touched, so the stage works unchanged on the DESC mdet, Rubin metadetect and anacal shear
+    catalogs.
+
+    The p(z) are ``float32`` probability masses on the uniform grid given by ``zgrid``,
+    written either as one list-valued ``pz`` column (``nested=True``) or as one column per
+    bin, ``Z0_000`` ... ``Z3_990``.  ``pz_source`` records which catalog supplied each row.
+    """
+
+    name = "MergeFullPZStage"
+    config_options = RailStage.config_options.copy()
+    config_options.update(
+        paus_cosmos_file=Param(str, required=True, msg="PAUS+COSMOS p(z) parquet file"),
+        cosmos_web_file=Param(str, required=True, msg="COSMOSWeb p(z) pickle file"),
+        fallback=Param(
+            list,
+            ["position", "cosmos2020"],
+            msg="how to reach rows that PAUS and COSMOSWeb ids miss, in priority order; "
+            "any of 'position' and 'cosmos2020', or empty to match on ids alone",
+        ),
+        cosmos2020_file=Param(
+            str, "", msg="COSMOS2020 LePhare p(z) image, required by fallback 'cosmos2020'"
+        ),
+        cosmos_web_photometry_file=Param(
+            str, "", msg="COSMOSWeb photometry file, required by fallback 'position'"
+        ),
+        match_radius_arcsec=Param(
+            float,
+            1.00,
+            msg="match radius for fallback 'position'; the default is the radius the "
+            "upstream cross-match used, and the match saturates well inside it",
+        ),
+        id_col=Param(str, "orig_id", msg="column holding the id into the reference catalog"),
+        ref_catalog_col=Param(
+            str, "ref_catalog", msg="column naming the catalog id_col refers to"
+        ),
+        zmin=Param(float, 0.0, msg="center of the first p(z) bin"),
+        zmax=Param(float, 3.99, msg="center of the last p(z) bin"),
+        dz=Param(float, 0.01, msg="width of the p(z) bins"),
+        nested=Param(
+            bool,
+            True,
+            msg="write p(z) as one list-valued column rather than one column per bin",
+        ),
+    )
+
+    inputs = [("input", PqHandle)]
+    outputs = [("output", PqHandle)]
+
+    @property
+    def zgrid(self) -> np.ndarray:
+        """Bin centers of the output p(z)."""
+        return np.arange(
+            self.config.zmin, self.config.zmax + self.config.dz / 2, self.config.dz
+        )
+
+    def column_names(self) -> list[str]:
+        """Column names the unnested format writes, one per bin of ``zgrid``."""
+        return [f"Z{z:.3f}".replace(".", "_") for z in self.zgrid]
+
+    def __call__(self, sample: TableLike, **kwargs) -> PqHandle:
+        """Merge p(z) into ``sample`` and return a handle to the result."""
+        self.set_data("input", sample)
+        self.run()
+        self.finalize()
+        return self.get_handle("output")
+
+    def run(self) -> None:
+        catalog = as_dataframe(self.get_data("input"))
+        for col in (self.config.id_col, self.config.ref_catalog_col):
+            if col not in catalog.columns:
+                raise KeyError(
+                    f"column '{col}' not in input; available: {list(catalog.columns)[:20]}..."
+                )
+
+        reference = catalog[self.config.ref_catalog_col].to_numpy()
+        # Coerced rather than cast: ids from surveys that use a non-numeric scheme are
+        # perfectly valid in the cross-match, they just cannot index any catalog here.
+        identifier = (
+            pd.to_numeric(catalog[self.config.id_col], errors="coerce")
+            .fillna(-1)
+            .astype("int64")
+            .to_numpy(copy=True)
+        )
+
+        # Which catalog supplies each row's p(z).  The PAUS and COSMOSWeb reference catalogs
+        # are mutually exclusive, so the order of these two is immaterial.
+        source = np.full(len(catalog), "", dtype=object)
+        source[reference == PAUS_COSMOS_REF] = "paus_cosmos"
+        source[reference == COSMOS_WEB_REF] = "cosmos_web"
+
+        # Each fallback is offered only the rows still without a p(z), so earlier steps win.
+        # A step must leave the ids of rows it cannot claim untouched, or it would destroy
+        # what a later step matches on.
+        for step in self.config.fallback:
+            rows = np.flatnonzero(source == "")
+            if step == "cosmos2020":
+                source[rows[reference[rows] == COSMOS2020_REF]] = "cosmos2020"
+            elif step == "position":
+                matched = cosmos_web_position_match(
+                    catalog["ra"].to_numpy()[rows],
+                    catalog["dec"].to_numpy()[rows],
+                    self.config.cosmos_web_photometry_file,
+                    self.config.match_radius_arcsec,
+                )
+                identifier[rows[matched >= 0]] = matched[matched >= 0]
+                source[rows[matched >= 0]] = "cosmos_web_position"
+            else:
+                raise ValueError(
+                    f"unknown fallback step {step!r}; expected 'position' or 'cosmos2020'"
+                )
+
+        # float32 holds a p(z) to far better than its real precision and compresses about
+        # four times smaller than float64, because the COSMOSWeb tails run down to ~1e-300
+        # and underflow to exact zero.  The rebinning stays in double precision.
+        zgrid = self.zgrid
+        pz = np.zeros((len(catalog), len(zgrid)), dtype="float32")
+        for labels, read_pz, path in (
+            (["paus_cosmos"], paus_cosmos_pz, self.config.paus_cosmos_file),
+            (["cosmos_web", "cosmos_web_position"], cosmos_web_pz, self.config.cosmos_web_file),
+            (["cosmos2020"], cosmos2020_pz, self.config.cosmos2020_file),
+        ):
+            rows = np.flatnonzero(np.isin(source, labels))
+            if len(rows):
+                pz[rows] = rebin_pz(*read_pz(path, identifier[rows]), zgrid)
+
+        keep = pz.sum(axis=1) > 0
+        output = catalog[keep].reset_index(drop=True)
+        output["pz_source"] = source[keep]
+        if self.config.nested:
+            output["pz"] = list(pz[keep])
+        else:
+            output = output.join(pd.DataFrame(pz[keep], columns=self.column_names()))
+        self.add_data("output", output)

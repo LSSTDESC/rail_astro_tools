@@ -66,6 +66,8 @@ DP2_METADETECT_CONFIG = dict(
     shear_catalog="",
     shear_group=DEFAULT_SHEAR_GROUP,
     shear_cols=DEFAULT_SHEAR_COLS,
+    # e.g. {"i_pgauss_mag": "mag_i"}: the magnitude again under a name saying which flux it is
+    shear_aliases={},
     shear_ra_col="ra",
     shear_dec_col="dec",
     shear_tract_col="tract",
@@ -128,6 +130,7 @@ class CrossMatchPipeline(RailPipeline):
             shear_catalog=config["shear_catalog"],
             shear_group=config["shear_group"],
             shear_cols=config["shear_cols"],
+            shear_aliases=config["shear_aliases"],
             shear_ra_col=config["shear_ra_col"],
             shear_dec_col=config["shear_dec_col"],
             shear_tract_col=config["shear_tract_col"],

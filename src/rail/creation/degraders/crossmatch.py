@@ -748,6 +748,11 @@ class TractCrossMatch(RailStage):
                 "IS the group -- there is no metaStep column",
         ),
         shear_cols=Param(list, DEFAULT_SHEAR_COLS, msg="shear columns carried to the output"),
+        shear_aliases=Param(
+            dict, {},
+            msg="extra output columns, {alias: shear column}: a copy of a carried shear "
+                "column under a name that says what it is, e.g. {'i_pgauss_mag': 'mag_i'}",
+        ),
         shear_ra_col=Param(str, "ra", msg="shear right ascension column, degrees"),
         shear_dec_col=Param(str, "dec", msg="shear declination column, degrees"),
         shear_tract_col=Param(str, "tract", msg="shear tract column; must already exist"),
@@ -817,6 +822,20 @@ class TractCrossMatch(RailStage):
             requested = int(os.environ.get("OMP_NUM_THREADS") or 0) or affinity
         return max(1, min(requested, affinity, max(n_tasks, 1)))
 
+    def _check_aliases(self, emit_cols) -> None:
+        """Every alias copies a carried shear column and takes a name nothing else uses."""
+        config = self.config
+        taken = set(emit_cols) | {config.ref_rename.get(n, n) for n in config.ref_cols}
+        taken |= {config.sep_col, config.tract_out_col} - {""}
+        for alias, source in config.shear_aliases.items():
+            if source not in emit_cols:
+                raise KeyError(
+                    f"shear alias {alias!r} copies {source!r}, which is not among the carried "
+                    f"shear columns {emit_cols}"
+                )
+            if alias in taken:
+                raise ValueError(f"shear alias {alias!r} would overwrite an output column")
+
     # -- run ---------------------------------------------------------------------------- #
 
     def run(self) -> None:
@@ -860,6 +879,7 @@ class TractCrossMatch(RailStage):
             *emit_cols, *cut_columns(shear_cuts),
             *( [config.dedup_col] if config.dedup_col else [] ),
         ])
+        self._check_aliases(emit_cols)
 
         with h5py.File(config.shear_catalog, "r", locking=False) as handle:
             if config.shear_group not in handle:
@@ -1042,6 +1062,7 @@ class TractCrossMatch(RailStage):
         if not pieces:
             self.log_msg("no matches -- writing an empty table")
             columns = {name: np.empty(0) for name in emit_cols}
+            columns.update({alias: np.empty(0) for alias in config.shear_aliases})
             frame = pd.DataFrame(columns)
             for name in config.ref_cols:
                 frame[config.ref_rename.get(name, name)] = np.empty(0)
@@ -1053,6 +1074,8 @@ class TractCrossMatch(RailStage):
         frame = pd.DataFrame(
             {name: np.concatenate([p["shear"][name] for p in pieces]) for name in emit_cols}
         )
+        for alias, source in config.shear_aliases.items():
+            frame[alias] = frame[source].to_numpy().copy()
 
         matched_ref = reference.iloc[
             np.concatenate([p["ref_idx"] for p in pieces])

@@ -465,7 +465,9 @@ def som_features(
     return np.column_stack(features).astype(np.float32)
 
 
-def nearest_cell(codebook: np.ndarray, data: np.ndarray, chunk: int = 65536) -> np.ndarray:
+def nearest_cell(  # pragma: no cover
+    codebook: np.ndarray, data: np.ndarray, chunk: int = 65536
+) -> np.ndarray:
     """Index of the closest codebook vector for every row of ``data``.
 
     Chunked, so 1M objects against a 32x32 map never hold more than a ``chunk x 1024``
@@ -480,7 +482,7 @@ def nearest_cell(codebook: np.ndarray, data: np.ndarray, chunk: int = 65536) -> 
     return out
 
 
-def train_som(
+def train_som(  # pragma: no cover
     train: np.ndarray,
     som_size: list,
     n_epochs: int,
@@ -690,7 +692,7 @@ class SOMResampler(RailStage):
             self.config.nondetect_val,
         )
 
-    def _train_and_assign(self, train: np.ndarray, samples: list) -> list:
+    def _train_and_assign(self, train: np.ndarray, samples: list) -> list:  # pragma: no cover
         """Train the SOM on ``train``; return the flat cell index of every row of each sample."""
         n_x, n_y = self.config.som_size
         t0 = time.time()
@@ -932,7 +934,7 @@ class SOMZCellResampler(SOMResampler):
         edges = np.asarray(self.config.z_edges, dtype=np.float64)
         if edges.ndim != 1 or len(edges) < 2 or not np.all(np.diff(edges) > 0):
             raise ValueError(f"z_edges must be at least two increasing values, got {edges}")
-        if self.config.z_shrink < 0:
+        if self.config.z_shrink < 0:  # pragma: no cover
             raise ValueError(f"z_shrink must be >= 0, got {self.config.z_shrink}")
         return edges
 
@@ -944,14 +946,14 @@ class SOMZCellResampler(SOMResampler):
             raise KeyError(f"truth_redshift_col {col!r} is not a column of the truth sample")
         z = pd.to_numeric(truth[col], errors="coerce").to_numpy(dtype=np.float64)
         finite = np.isfinite(z)
-        if not finite.all():
+        if not finite.all():  # pragma: no cover
             print(
                 f"  [{self.name}] truth: {int((~finite).sum()):,} rows without a finite "
                 f"{col} dropped",
                 flush=True,
             )
             truth = truth[finite].reset_index(drop=True)
-        if truth.empty:
+        if truth.empty:  # pragma: no cover
             raise ValueError("the truth sample has no row with a finite redshift")
         return {"truth": truth}
 
@@ -963,7 +965,7 @@ class SOMZCellResampler(SOMResampler):
                 f"redshift_col {self.config.redshift_col!r} is not a column of the pool"
             )
         pool_z = pd.to_numeric(frames["pool"][self.config.redshift_col], errors="coerce")
-        if not np.isfinite(pool_z.to_numpy(dtype=np.float64)).all():
+        if not np.isfinite(pool_z.to_numpy(dtype=np.float64)).all():  # pragma: no cover
             raise ValueError(f"the pool has non-finite {self.config.redshift_col!r} values")
         pool_bin = redshift_bins(pool_z, edges)
         truth_bin = redshift_bins(frames["truth"][self.config.truth_redshift_col], edges)

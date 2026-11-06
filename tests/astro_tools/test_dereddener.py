@@ -11,17 +11,35 @@ import yaml
 from rail.core.data import DataStore
 from rail.core.stage import RailPipeline
 from rail.pipelines.degradation.hscfy_pz_prepare import HscfyPzPreparePipeline  # noqa: F401
-from rail.tools.photometry_tools import Dereddener
+from rail.tools.photometry_tools import Dereddener, Reddener
 
 DataStore.allow_overwrite = True
 
-# The SFD maps; rail's own test_core downloads them when RAIL_DUSTMAP_DIR is unset, these
-# tests only run where they are already on disk.
+# The SFD maps, if RAIL_DUSTMAP_DIR points at them.  Otherwise -- as in CI, where the download
+# is broken (see test_core.test_dereddener) -- the map is faked, so the stage logic is still
+# exercised; only the E(B-V) values themselves are not SFD's.
 DUSTMAP_DIR = os.environ.get("RAIL_DUSTMAP_DIR", "")
-needs_map = pytest.mark.skipif(
-    not os.path.exists(os.path.join(DUSTMAP_DIR, "sfd", "SFD_dust_4096_ngp.fits")),
-    reason="set RAIL_DUSTMAP_DIR to a directory holding sfd/SFD_dust_4096_*.fits",
-)
+HAVE_MAP = os.path.exists(os.path.join(DUSTMAP_DIR, "sfd", "SFD_dust_4096_ngp.fits"))
+
+
+class _FakeSFDQuery:
+    """Stands in for dustmaps.sfd.SFDQuery without reading any file: E(B-V) > 0 everywhere."""
+
+    def __call__(self, coords):
+        return 0.01 + 0.001 * np.abs(coords.dec.deg)
+
+
+@pytest.fixture(name="dustmap_dir")
+def fixture_dustmap_dir(tmp_path, monkeypatch):
+    """The real map directory if there is one, else an empty directory and a fake map."""
+    if HAVE_MAP:  # pragma: no cover - only where the SFD files are on disk
+        return DUSTMAP_DIR
+    import dustmaps.sfd
+
+    # an empty directory makes fetch_map() call fetch(); make that a no-op
+    monkeypatch.setattr(dustmaps.sfd, "fetch", lambda: None)
+    monkeypatch.setattr(dustmaps.sfd, "SFDQuery", _FakeSFDQuery)
+    return str(tmp_path)
 
 
 def _table():
@@ -35,11 +53,10 @@ def _table():
     )
 
 
-@needs_map
-def test_pyarrow_input_sentinel_and_ebv():
+def test_pyarrow_input_sentinel_and_ebv(dustmap_dir):
     stage = Dereddener.make_stage(
         name="dered_pa",
-        dustmap_dir=DUSTMAP_DIR,
+        dustmap_dir=dustmap_dir,
         band_a_env={"mag_i": 2.06},
         copy_all_cols=True,
         nondetect_val=40.0,
@@ -54,28 +71,34 @@ def test_pyarrow_input_sentinel_and_ebv():
     assert np.isnan(out["mag_i"].iloc[2])
 
 
-@needs_map
-def test_default_options_unchanged():
+def test_default_options_unchanged(dustmap_dir):
     """Without the new options a pandas input gives what it always did."""
     stage = Dereddener.make_stage(
-        name="dered_pd", dustmap_dir=DUSTMAP_DIR, band_a_env={"mag_i": 2.06}, copy_all_cols=True
+        name="dered_pd", dustmap_dir=dustmap_dir, band_a_env={"mag_i": 2.06}, copy_all_cols=True
     )
     out = stage(_table().to_pandas()).data
     assert "ebv_sfd" not in out
     assert out["mag_i"].iloc[1] < 40.0
 
 
-@needs_map
-def test_ebv_name_collision():
+def test_ebv_name_collision(dustmap_dir):
     stage = Dereddener.make_stage(
         name="dered_clash",
-        dustmap_dir=DUSTMAP_DIR,
+        dustmap_dir=dustmap_dir,
         band_a_env={"mag_i": 2.06},
         copy_all_cols=True,
         ebv_name="survey",
     )
     with pytest.raises(ValueError, match="already a column"):
         stage(_table())
+
+
+def test_reddener_undoes_the_dereddener(dustmap_dir):
+    options = dict(dustmap_dir=dustmap_dir, band_a_env={"mag_i": 2.06}, copy_all_cols=True)
+    frame = _table().to_pandas()
+    dered = Dereddener.make_stage(name="dered_rt", **options)(frame).data
+    back = Reddener.make_stage(name="red_rt", **options)(dered).data
+    np.testing.assert_allclose(back["mag_i"].iloc[[0, 3]], frame["mag_i"].iloc[[0, 3]])
 
 
 def _build(tmp_path, config):

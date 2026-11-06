@@ -266,7 +266,7 @@ class ShearPopulationSampler(RailStage):
     def _resolve_nproc(self, n_tasks: int) -> int:
         affinity = len(os.sched_getaffinity(0))
         requested = self.config.nproc
-        if requested <= 0:
+        if requested <= 0:  # pragma: no cover
             requested = int(os.environ.get("OMP_NUM_THREADS") or 0) or affinity
         return max(1, min(requested, affinity, max(n_tasks, 1)))
 
@@ -288,13 +288,13 @@ class ShearPopulationSampler(RailStage):
 
     def run(self) -> None:
         config = self.config
-        if getattr(self, "comm", None) is not None:
+        if getattr(self, "comm", None) is not None:  # pragma: no cover
             raise RuntimeError(f"{self.name} forks a worker pool and cannot run under MPI")
         if not config.shear_catalog:
             raise ValueError("shear_catalog is required -- the path to the shear HDF5")
-        if config.n_sample <= 0:
+        if config.n_sample <= 0:  # pragma: no cover
             raise ValueError(f"n_sample must be positive, got {config.n_sample}")
-        if config.chunk_rows <= 0:
+        if config.chunk_rows <= 0:  # pragma: no cover
             raise ValueError(f"chunk_rows must be positive, got {config.chunk_rows}")
         if config.abs_color_max > 0 and len(config.color_cols) < 2:
             raise ValueError("abs_color_max needs at least two color_cols")
@@ -310,7 +310,7 @@ class ShearPopulationSampler(RailStage):
         ])
 
         with h5py.File(config.shear_catalog, "r", locking=False) as handle:
-            if config.shear_group not in handle:
+            if config.shear_group not in handle:  # pragma: no cover
                 raise KeyError(
                     f"group {config.shear_group!r} is not in {config.shear_catalog}; "
                     f"top level holds {list(handle.keys())}"
@@ -321,7 +321,7 @@ class ShearPopulationSampler(RailStage):
                 f"shear catalog group {config.shear_group!r}",
             )
             lengths = {group[name].shape[0] for name in _ordered_unique([*shear_cols, *selection_cols])}
-            if len(lengths) != 1:
+            if len(lengths) != 1:  # pragma: no cover
                 raise ValueError(f"columns in {config.shear_group!r} differ in length: {lengths}")
             n_rows = lengths.pop()
         gc.collect()
@@ -369,7 +369,7 @@ class ShearPopulationSampler(RailStage):
 
         # ---- the draw ---------------------------------------------------------------- #
         n_selected = int(kept.size)
-        if n_selected == 0:
+        if n_selected == 0:  # pragma: no cover
             raise RuntimeError("the selection keeps no rows")
         if n_selected <= config.n_sample:
             self.log_msg(

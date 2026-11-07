@@ -1061,6 +1061,19 @@ def rebin_pz(z_in: np.ndarray, pz_in: np.ndarray, z_out: np.ndarray) -> np.ndarr
     return np.divide(pz, total, out=np.zeros_like(pz), where=total > 0)
 
 
+def delta_pz(redshift: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+    """A unit spike on the grid ``z_out`` at each entry of ``redshift``.
+
+    This is what a spectroscopic redshift looks like on the same grid as a p(z): all the
+    probability in one bin.  Redshifts beyond either end of ``z_out`` land in its end bins,
+    the same convention ``rebin_pz`` uses.
+    """
+    pz = np.zeros((len(redshift), len(z_out)), dtype="float32")
+    bin_of = np.rint((redshift - z_out[0]) / (z_out[1] - z_out[0]))
+    pz[np.arange(len(redshift)), np.clip(bin_of, 0, len(z_out) - 1).astype(int)] = 1.0
+    return pz
+
+
 def paus_cosmos_pz(path: str, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """``(z, p(z))`` for ``ids``, from the PAUS+COSMOS parquet file.
 
@@ -1149,6 +1162,14 @@ class MergeFullPZStage(RailStage):
     The p(z) are ``float32`` probability masses on the uniform grid given by ``zgrid``,
     written either as one list-valued ``pz`` column (``nested=True``) or as one column per
     bin, ``Z0_000`` ... ``Z3_990``.  ``pz_source`` records which catalog supplied each row.
+
+    The unnested layout additionally gives every row whose ``z_type_col`` is one of
+    ``spec_z_types`` a delta function at its reference redshift, marked ``pz_source``
+    ``"spec_z"``.  That makes the p(z) usable uniformly across the whole table rather than
+    only on the rows an external catalog covers, which is the point of paying for the wide
+    layout.  A spectroscopic redshift is more informative than a photometric p(z), so it
+    wins on the rows that have both.  The nested layout is left alone, since its whole
+    advantage is that rows without a p(z) cost nothing.
     """
 
     name = "MergeFullPZStage"
@@ -1171,10 +1192,23 @@ class MergeFullPZStage(RailStage):
         match_radius_arcsec=Param(
             float,
             1.00,
-            msg="match radius for fallback 'position'; the default is the radius the "
-            "upstream cross-match used, and the match saturates well inside it",
+            msg="match radius in arcsec for fallback 'position'; the match saturates "
+            "well below this, so the exact value is not critical (the upstream "
+            "cross-match used 0.75)",
         ),
         id_col=Param(str, "orig_id", msg="column holding the id into the reference catalog"),
+        redshift_col=Param(
+            str, "z", msg="reference redshift, used for the unnested layout's spec-z deltas"
+        ),
+        z_type_col=Param(
+            str, "z_type", msg="column saying what kind of redshift redshift_col holds"
+        ),
+        spec_z_types=Param(
+            list,
+            ["s"],
+            msg="z_type_col values precise enough to stand in as a delta function; only "
+            "used for the unnested layout, and empty disables the deltas entirely",
+        ),
         ref_catalog_col=Param(
             str, "ref_catalog", msg="column naming the catalog id_col refers to"
         ),
@@ -1211,7 +1245,10 @@ class MergeFullPZStage(RailStage):
 
     def run(self) -> None:
         catalog = as_dataframe(self.get_data("input"))
-        for col in (self.config.id_col, self.config.ref_catalog_col):
+        required = [self.config.id_col, self.config.ref_catalog_col]
+        if not self.config.nested and self.config.spec_z_types:
+            required += [self.config.redshift_col, self.config.z_type_col]
+        for col in required:
             if col not in catalog.columns:
                 raise KeyError(
                     f"column '{col}' not in input; available: {list(catalog.columns)[:20]}..."
@@ -1267,6 +1304,19 @@ class MergeFullPZStage(RailStage):
             rows = np.flatnonzero(np.isin(source, labels))
             if len(rows):
                 pz[rows] = rebin_pz(*read_pz(path, identifier[rows]), zgrid)
+
+        # A spectroscopic redshift carries more information than any photometric p(z), so it
+        # overwrites one where a row has both.  Redshifts past zmax pile up in the last bin.
+        if not self.config.nested and self.config.spec_z_types:
+            redshift = pd.to_numeric(
+                catalog[self.config.redshift_col], errors="coerce"
+            ).to_numpy()
+            rows = np.flatnonzero(
+                np.isin(catalog[self.config.z_type_col].to_numpy(), self.config.spec_z_types)
+                & np.isfinite(redshift)
+            )
+            pz[rows] = delta_pz(redshift[rows], zgrid)
+            source[rows] = "spec_z"
 
         keep = pz.sum(axis=1) > 0
         output = catalog[keep].reset_index(drop=True)

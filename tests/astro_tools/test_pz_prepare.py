@@ -29,6 +29,7 @@ from rail.creation.degraders.pz_prepare import (
     allocate_cell_targets,
     draw_cell_members,
     redshift_bins,
+    delta_pz,
     rebin_pz,
     som_features,
     train_som,
@@ -947,9 +948,15 @@ def test_merge_full_pz_chained_fallbacks(external_pz_files, merge_catalog):
 
 
 def test_merge_full_pz_unnested_matches_nested(external_pz_files, merge_catalog):
-    """The one-column-per-bin format holds the same numbers under the documented names."""
+    """The one-column-per-bin format holds the same numbers under the documented names.
+
+    The spec-z deltas are switched off here so this compares the two layouts and nothing
+    else; with them on the unnested layout deliberately holds more rows.
+    """
     nested = MergeFullPZStage.make_stage(name="nest", **external_pz_files)(merge_catalog).data
-    stage = MergeFullPZStage.make_stage(name="flat", nested=False, **external_pz_files)
+    stage = MergeFullPZStage.make_stage(
+        name="flat", nested=False, spec_z_types=[], **external_pz_files
+    )
     flat = stage(merge_catalog).data
 
     assert stage.column_names()[:2] == ["Z0_000", "Z0_010"]
@@ -971,7 +978,8 @@ def test_merge_full_pz_accepts_arrow_table(external_pz_files, merge_catalog):
 def test_merge_full_pz_custom_grid(external_pz_files, merge_catalog):
     """zmin/zmax/dz drive both the grid and the unnested column names."""
     stage = MergeFullPZStage.make_stage(
-        name="grid", zmin=0.0, zmax=1.0, dz=0.1, nested=False, fallback=[], **external_pz_files
+        name="grid", zmin=0.0, zmax=1.0, dz=0.1, nested=False, fallback=[],
+        spec_z_types=[], **external_pz_files
     )
     out = stage(merge_catalog).data
     assert stage.column_names() == [f"Z{0.1 * k:.3f}".replace(".", "_") for k in range(11)]
@@ -1028,3 +1036,93 @@ def test_rebin_pz_handles_a_non_uniform_input_grid():
     pz /= pz.sum(axis=1, keepdims=True)
 
     assert rebin_pz(z_in, pz, z_out).sum(axis=1) == pytest.approx(1.0)
+
+
+def test_delta_pz_puts_all_the_mass_in_one_bin():
+    """A delta is a unit spike in the nearest bin, piling up past either end of the grid."""
+    z_out = np.arange(0.0, 3.995, 0.01)
+    pz = delta_pz(np.array([0.50, 1.234, 9.9, -2.0]), z_out)
+
+    assert pz.dtype == np.float32
+    assert pz.sum(axis=1) == pytest.approx(1.0)
+    assert (pz > 0).sum(axis=1).tolist() == [1, 1, 1, 1]
+    assert z_out[pz[0].argmax()] == pytest.approx(0.50)
+    assert z_out[pz[1].argmax()] == pytest.approx(1.23, abs=0.011)
+    assert pz[2].argmax() == len(z_out) - 1     # beyond zmax
+    assert pz[3].argmax() == 0                  # below zmin
+
+
+@pytest.fixture
+def spec_z_catalog(merge_catalog):
+    """``merge_catalog`` plus the redshift columns, with one spec-z that also has a p(z)."""
+    catalog = merge_catalog.copy()
+    #                   paus  web  c2020  position  nothing  noise
+    catalog["z"] = [0.111, 0.222, 0.333, 1.555, 0.777, 2.444]
+    catalog["z_type"] = ["p", "p", "p", "s", "s", "g"]
+    return catalog
+
+
+def test_spec_z_deltas_fill_the_unnested_layout(external_pz_files, spec_z_catalog):
+    """Unnested output covers spec-z rows an external catalog never reached."""
+    stage = MergeFullPZStage.make_stage(name="delta", nested=False, **external_pz_files)
+    out = stage(spec_z_catalog).data
+    zcolumns = stage.column_names()
+
+    # 'nothing' has no p(z) from any catalog, but it does have a spec-z
+    assert set(out["tag"]) == {"paus", "web", "c2020", "position", "nothing"}
+    assert out.loc[out.tag == "nothing", "pz_source"].item() == "spec_z"
+    assert out[zcolumns].to_numpy().sum(axis=1) == pytest.approx(1.0, abs=1e-6)
+
+    row = out[out.tag == "nothing"][zcolumns].to_numpy()[0]
+    assert stage.zgrid[row.argmax()] == pytest.approx(0.777, abs=0.011)
+    assert (row > 0).sum() == 1
+
+    # 'noise' is z_type 'g', not in spec_z_types, so it is still dropped
+    assert "noise" not in set(out["tag"])
+
+
+def test_spec_z_delta_beats_a_full_pz(external_pz_files, spec_z_catalog):
+    """Where a row has both, the spec-z delta replaces the matched p(z)."""
+    stage = MergeFullPZStage.make_stage(name="beats", nested=False, **external_pz_files)
+    out = stage(spec_z_catalog).data
+    row = out[out.tag == "position"][stage.column_names()].to_numpy()[0]
+
+    assert out.loc[out.tag == "position", "pz_source"].item() == "spec_z"
+    assert (row > 0).sum() == 1
+    assert stage.zgrid[row.argmax()] == pytest.approx(1.555, abs=0.011)
+
+
+def test_nested_layout_has_no_spec_z_deltas(external_pz_files, spec_z_catalog):
+    """The nested layout is untouched: its advantage is that empty rows cost nothing."""
+    out = MergeFullPZStage.make_stage(name="nodelta", **external_pz_files)(spec_z_catalog).data
+
+    assert set(out["tag"]) == {"paus", "web", "c2020", "position"}
+    assert "spec_z" not in set(out["pz_source"])
+    assert out.loc[out.tag == "position", "pz_source"].item() == "cosmos_web_position"
+
+
+def test_spec_z_types_can_be_widened_or_disabled(external_pz_files, spec_z_catalog):
+    """``spec_z_types`` chooses which redshifts are precise enough to be a delta."""
+    grism = MergeFullPZStage.make_stage(
+        name="grism", nested=False, spec_z_types=["s", "g"], **external_pz_files
+    )(spec_z_catalog).data
+    assert grism.loc[grism.tag == "noise", "pz_source"].item() == "spec_z"
+
+    off = MergeFullPZStage.make_stage(
+        name="off", nested=False, spec_z_types=[], **external_pz_files
+    )(spec_z_catalog).data
+    assert "spec_z" not in set(off["pz_source"])
+    assert set(off["tag"]) == {"paus", "web", "c2020", "position"}
+
+
+def test_unnested_layout_requires_the_redshift_columns(external_pz_files, spec_z_catalog):
+    """Missing redshift columns are an error only when the deltas actually need them."""
+    stage = MergeFullPZStage.make_stage(name="needs_z", nested=False, **external_pz_files)
+    with pytest.raises(KeyError, match="z_type"):
+        stage(spec_z_catalog.drop(columns=["z_type"]))
+
+    # ... and not when the deltas are switched off
+    off = MergeFullPZStage.make_stage(
+        name="needs_z_off", nested=False, spec_z_types=[], **external_pz_files
+    )
+    assert len(off(spec_z_catalog.drop(columns=["z_type"])).data) == 4
